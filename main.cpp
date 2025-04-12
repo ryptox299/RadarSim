@@ -7,8 +7,8 @@
 #include <cstdlib>  // For std::system
 #include <json.hpp> // Include the JSON library
 #include <boost/asio.hpp>    // Include Boost ASIO for TCP communication
-#include "flight_control_sample.hpp"
-#include "flight_sample.hpp"
+#include "flight_control_sample.hpp" // Still needed for monitoredTakeoff/Landing
+#include "flight_sample.hpp"         // Still needed for FlightSample class definition
 #include "dji_linux_helpers.hpp"
 #include <limits> // For numeric limits
 #include <fstream> // For file reading
@@ -17,9 +17,13 @@
 #include <cstring> // For strchr
 #include <stdexcept> // For standard exceptions
 #include <array> // For std::array used in read_some buffer
+// Include the headers that define Control flags, CtrlData, FlightController, and Vehicle
+#include "dji_control.hpp"           // Defines Control class, CtrlData, enums
+#include "dji_flight_controller.hpp" // Defines FlightController (though not used for this specific command)
+#include "dji_vehicle.hpp"           // Defines Vehicle class which contains Control*
 
 using namespace DJI::OSDK;
-using namespace DJI::OSDK::Telemetry;
+using namespace DJI::OSDK::Telemetry; // If using Telemetry data elsewhere
 using json = nlohmann::json;
 using boost::asio::ip::tcp;
 
@@ -60,6 +64,8 @@ void loadPreferences() {
         std::cout << "Preferences file not found. Using default target distance: " << targetDistance << " meters.\n";
     }
 }
+
+// REMOVED CtrlData constructor definition - it's already in libdjiosdk-core.a
 
 struct RadarObject {
     std::string timestamp;
@@ -113,9 +119,10 @@ void displayRadarObjectsMinimal(const std::vector<RadarObject>& objects) {
     }
 }
 
-// Modified function accepts FlightSample pointer (can be nullptr)
+// Modified function accepts Vehicle pointer (can be nullptr)
 // Now also includes logic to stop based on stopProcessingFlag
-void extractBeaconAndWallData(const std::vector<RadarObject>& objects, FlightSample* flightSample, bool enableControl) {
+// Velocity commands are now relative to the drone's BODY FRAME using control->flightCtrl
+void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) { // Parameter is Vehicle*
      // Reset persistent variables at the start of processing a new batch if necessary
      // This might depend on how frequently this function is called relative to data batches
      // For now, assuming it processes a stream and state persists across calls within a run.
@@ -157,7 +164,8 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, FlightSam
                 std::cout << currentSecond << ": Likely WALL candidate distance: " << lowestRange << " meters\n";
 
                 // --- Movement Logic ---
-                if (enableControl && flightSample != nullptr) { // Check BOTH flag and pointer
+                // Use the passed-in vehicle pointer and its 'control' member
+                if (enableControl && vehicle != nullptr && vehicle->control != nullptr) { // Check enableControl, vehicle AND control pointers
 
                     // ***** CORRECTED DIFFERENCE CALCULATION *****
                     float difference = lowestRange - targetDistance; // Error = current - target
@@ -166,7 +174,15 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, FlightSam
                     float Kp = 0.5; // Proportional gain (NEEDS TUNING)
                     float max_speed = 0.8; // Maximum speed in m/s (NEEDS TUNING)
                     float dead_zone = 0.2; // Distance tolerance in meters (NEEDS TUNING)
-                    uint32_t command_duration_ms = 200; // Duration to send velocity command (NEEDS TUNING)
+                    // uint32_t command_duration_ms = 200; // Duration not used by flightCtrl
+
+                    // Define the control flag for body frame velocity control
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | // Control horizontal velocity
+                                          DJI::OSDK::Control::VERTICAL_VELOCITY   | // Control vertical velocity (set to 0)
+                                          DJI::OSDK::Control::YAW_RATE            | // Control yaw rate (set to 0)
+                                          DJI::OSDK::Control::HORIZONTAL_BODY     | // Use Body Frame for horizontal
+                                          DJI::OSDK::Control::STABLE_ENABLE;        // Use stable mode (brake when input is 0)
+
 
                     if (std::abs(difference) > dead_zone) { // Only move if outside the dead zone
                         // Note: The sign of velocity_x is now correct due to the changed difference calculation
@@ -176,17 +192,24 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, FlightSam
 
                         std::cout << "Adjusting position: Current=" << lowestRange
                                   << ", Target=" << targetDistance
-                                  << ", VelocityX=" << velocity_x << std::endl;
+                                  << ", VelocityX=" << velocity_x << " (Body Frame)" << std::endl;
 
-                        // Send velocity command (assuming X is forward/backward axis)
-                        flightSample->velocityAndYawRateCtrl({velocity_x, 0, 0}, 0, command_duration_ms);
+                        // Create CtrlData struct for movement
+                        DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, 0, 0, 0); // flag, x, y, z, yaw(rate)
+
+                        // Send control command using the base Control object
+                        vehicle->control->flightCtrl(ctrlData);
 
                     } else {
                         std::cout << "Wall is within target distance tolerance.\n";
-                        // Send zero velocity to stop any residual movement
-                        flightSample->velocityAndYawRateCtrl({0, 0, 0}, 0, command_duration_ms);
+
+                        // Create CtrlData struct for stopping (zero velocity)
+                        DJI::OSDK::Control::CtrlData ctrlData(controlFlag, 0, 0, 0, 0); // flag, x=0, y=0, z=0, yaw(rate)=0
+
+                        // Send control command using the base Control object
+                        vehicle->control->flightCtrl(ctrlData);
                     }
-                } else if (hasAnonData) { // Only print if wall data was found
+                } else if (hasAnonData) { // Only print if wall data was found (and control was intended but vehicle/control is null)
                      std::cout << "(Flight Control Disabled or Not Available)\n";
                 }
                  // --- End Movement Logic ---
@@ -231,7 +254,7 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
     auto jsonFrame = json::parse(jsonData); // This might throw
 
     // Check if "objects" key exists and is an array
-    if (!jsonFrame.contains("objects") || !jsonFrame["objects"].is_array()) {
+    if (!jsonFrame.contains("objects") || !jsonFrame["objects"].is_array()) { // Corrected key name
         // Treat it as valid but empty for now.
         return radarObjects; // Return empty vector
     }
@@ -331,21 +354,26 @@ bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& soc
 }
 
 // Callbacks for obtaining/releasing control
+// Note: These might need adjustment if they were previously tied to FlightController's specific authority methods
+// But the ErrorCode types are likely compatible.
 void ObtainJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) {
-    if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ObtainJoystickCtrlAuthoritySuccess) {
-        DSTATUS("ObtainJoystickCtrlAuthoritySuccess");
+    if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ObtainJoystickCtrlAuthoritySuccess) { // This specific error code might need checking against base Control authority success codes if different
+        DSTATUS("ObtainJoystickCtrlAuthoritySuccess (or equivalent Control Authority)");
     } else {
-        DERROR("Failed to obtain Joystick Control Authority. ErrorCode: %d", errorCode);
+        // It might be better to use vehicle->control->obtainCtrlAuthority which returns ACK::ErrorCode
+        // Check dji_ack.hpp for success codes like ACK::SUCCESS or specific authority codes.
+        DERROR("Failed to obtain Control Authority. ErrorCode: %d", errorCode);
     }
 }
 
 void ReleaseJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) {
-    if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ReleaseJoystickCtrlAuthoritySuccess) {
-        DSTATUS("ReleaseJoystickCtrlAuthoritySuccess");
+     if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ReleaseJoystickCtrlAuthoritySuccess) { // Similar check needed here
+        DSTATUS("ReleaseJoystickCtrlAuthoritySuccess (or equivalent Control Authority)");
     } else {
-         DERROR("Failed to release Joystick Control Authority. ErrorCode: %d", errorCode);
+         DERROR("Failed to release Control Authority. ErrorCode: %d", errorCode);
     }
 }
+
 
 // Enum for different processing modes
 enum class ProcessingMode {
@@ -357,7 +385,8 @@ enum class ProcessingMode {
 
 
 // ***** REVISED processingLoopFunction with socket.read_some *****
-void processingLoopFunction(const std::string bridgeScriptName, FlightSample* flightSample, bool enableControlCmd, ProcessingMode mode) {
+// Parameter changed from FlightSample* to Vehicle*
+void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle, bool enableControlCmd, ProcessingMode mode) {
     std::cout << "Processing thread started. Bridge: " << bridgeScriptName << ", Control Enabled: " << std::boolalpha << enableControlCmd << std::endl;
 
     runPythonBridge(bridgeScriptName); // Start the specific bridge script
@@ -411,7 +440,8 @@ void processingLoopFunction(const std::string bridgeScriptName, FlightSample* fl
                         if (!radarObjects.empty()) {
                            switch (mode) {
                                 case ProcessingMode::WALL_FOLLOW:
-                                    extractBeaconAndWallData(radarObjects, flightSample, enableControlCmd);
+                                    // Pass the 'vehicle' pointer and enableControlCmd status
+                                    extractBeaconAndWallData(radarObjects, vehicle, enableControlCmd);
                                     break;
                                 case ProcessingMode::PROCESS_FULL:
                                     displayRadarObjects(radarObjects);
@@ -420,6 +450,7 @@ void processingLoopFunction(const std::string bridgeScriptName, FlightSample* fl
                                     displayRadarObjectsMinimal(radarObjects);
                                     break;
                                 case ProcessingMode::PROCESS_BEACON_WALL_ONLY:
+                                    // Pass nullptr for vehicle, false for enableControlCmd
                                     extractBeaconAndWallData(radarObjects, nullptr, false);
                                     break;
                             }
@@ -492,7 +523,7 @@ int main(int argc, char** argv) {
     // --- OSDK Initialization (if flight control enabled) ---
     int functionTimeout = 1; // Timeout for async calls in SECONDS
     Vehicle* vehicle = nullptr;
-    FlightSample* flightSample = nullptr;
+    FlightSample* flightSample = nullptr; // Still needed for Takeoff/Landing wrappers
     LinuxSetup* linuxEnvironment = nullptr;
 
     if (enableFlightControl) {
@@ -504,21 +535,34 @@ int main(int argc, char** argv) {
 
         linuxEnvironment = new LinuxSetup(argc, argv);
         vehicle = linuxEnvironment->getVehicle();
-        // Check if vehicle pointer is valid after initialization attempt
-        if (vehicle == nullptr) {
-            std::cerr << "ERROR: Vehicle not initialized or not connected. Flight control will be unavailable.\n";
+        // Check if vehicle pointer and the base 'control' pointer are valid
+        if (vehicle == nullptr || vehicle->control == nullptr) {
+            std::cerr << "ERROR: Vehicle not initialized or control interface unavailable. Flight control will be disabled.\n";
              if (linuxEnvironment) delete linuxEnvironment; linuxEnvironment = nullptr;
-             // vehicle = nullptr; // Already null
+             vehicle = nullptr; // Ensure vehicle is null if init failed
              enableFlightControl = false; // Force disable flight control
              std::cout << "Switching to Test Mode functionality due to OSDK connection issue.\n";
              defaultPythonBridgeScript = "python_bridge_LOCAL.py"; // Use local bridge if OSDK fails
         } else {
-            std::cout << "Attempting to obtain Joystick Control Authority...\n";
-            // Add timeout (in ms) and pkg_timeout (usually 2)
-            vehicle->flightController->obtainJoystickCtrlAuthorityAsync(ObtainJoystickCtrlAuthorityCB, nullptr, functionTimeout * 1000, 2);
-            std::this_thread::sleep_for(std::chrono::seconds(2)); // Allow time for callback
-            flightSample = new FlightSample(vehicle);
-            std::cout << "OSDK Initialized and Flight Sample created.\n";
+            std::cout << "Attempting to obtain Control Authority...\n";
+            // Use the base control->obtainCtrlAuthority
+            ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+            if (ACK::getError(ctrlAuthAck)) {
+                 ACK::getErrorCodeMessage(ctrlAuthAck, __func__);
+                 std::cerr << "Failed to obtain control authority. Disabling flight control." << std::endl;
+                 // Cleanup and disable control
+                 if (linuxEnvironment) delete linuxEnvironment; linuxEnvironment = nullptr;
+                 vehicle = nullptr;
+                 enableFlightControl = false;
+                 std::cout << "Switching to Test Mode functionality due to authority failure.\n";
+                 defaultPythonBridgeScript = "python_bridge_LOCAL.py";
+            } else {
+                 std::cout << "Obtained Control Authority.\n";
+                 // FlightSample might still be useful for monitored takeoff/landing wrappers
+                 // It internally uses vehicle->control->action(...)
+                 flightSample = new FlightSample(vehicle);
+                 std::cout << "OSDK Initialized and Flight Sample created.\n";
+            }
         }
     } else {
          std::cout << "Running without Flight Control (Test Mode selected or OSDK init failed).\n";
@@ -582,6 +626,7 @@ int main(int argc, char** argv) {
         // --- Process Command ---
         switch (inputChar) {
             case 't': // Takeoff
+                // Use flightSample for takeoff/landing as it provides monitoring
                 if (enableFlightControl && flightSample) {
                     flightSample->monitoredTakeoff();
                 } else {
@@ -589,6 +634,7 @@ int main(int argc, char** argv) {
                 }
                 break;
             case 'l': // Landing
+                 // Use flightSample for takeoff/landing as it provides monitoring
                  if (enableFlightControl && flightSample) {
                     flightSample->monitoredLanding();
                 } else {
@@ -599,39 +645,39 @@ int main(int argc, char** argv) {
              case 'w': // Start Wall Following (Default Bridge, Control if Enabled)
                  std::cout << "Starting Wall Following using default bridge: " << defaultPythonBridgeScript << "\n";
                  stopProcessingFlag.store(false); // Ensure flag is false before starting
-                 // Start thread: uses default bridge, passes flightSample, enables control CMDs *only if* flight control is enabled overall
-                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, flightSample, enableFlightControl, ProcessingMode::WALL_FOLLOW);
+                 // Pass 'vehicle' pointer if control enabled, otherwise nullptr
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, (enableFlightControl ? vehicle : nullptr), enableFlightControl, ProcessingMode::WALL_FOLLOW);
                  break;
 
              case 'h': // Start Wall Following (TEST Bridge, Control if Enabled)
                  if (!enableFlightControl) {
-                     std::cout << "Error: Flight control must be enabled (select Live Mode 'a' at start) to use this option.\n";
+                     std::cout << "Error: Flight control must be enabled (select Live Mode 'a' at start) to use this option effectively.\n";
                  } else {
                      std::cout << "Starting Wall Following using TEST bridge: python_bridge_LOCAL.py\n";
                      stopProcessingFlag.store(false);
-                     // Start thread: uses LOCAL bridge, passes flightSample, enables control CMDs because enableFlightControl is true here
-                     processingThread = std::thread(processingLoopFunction, "python_bridge_LOCAL.py", flightSample, true, ProcessingMode::WALL_FOLLOW);
+                     // Pass 'vehicle' pointer as control is enabled here
+                     processingThread = std::thread(processingLoopFunction, "python_bridge_LOCAL.py", vehicle, true, ProcessingMode::WALL_FOLLOW);
                  }
                  break;
 
              case 'e': // Process Full Radar Data (Default Bridge, No Control)
                  std::cout << "Starting Full Radar Data processing using default bridge: " << defaultPythonBridgeScript << "\n";
                  stopProcessingFlag.store(false);
-                 // Start thread: uses default bridge, passes nullptr for flightSample, disables control CMDs
+                 // Pass nullptr for vehicle, false for control CMDs
                  processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, ProcessingMode::PROCESS_FULL);
                  break;
 
              case 'f': // Process Minimal Radar Data (Default Bridge, No Control)
                   std::cout << "Starting Minimal Radar Data processing using default bridge: " << defaultPythonBridgeScript << "\n";
                  stopProcessingFlag.store(false);
-                 // Start thread: uses default bridge, passes nullptr for flightSample, disables control CMDs
+                 // Pass nullptr for vehicle, false for control CMDs
                  processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, ProcessingMode::PROCESS_MINIMAL);
                  break;
 
              case 'g': // Process Beacon/Wall Only (Default Bridge, No Control)
                   std::cout << "Starting Beacon/Wall Data processing using default bridge: " << defaultPythonBridgeScript << "\n";
                  stopProcessingFlag.store(false);
-                 // Start thread: uses default bridge, passes nullptr for flightSample, disables control CMDs
+                  // Pass nullptr for vehicle, false for control CMDs
                  processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, ProcessingMode::PROCESS_BEACON_WALL_ONLY);
                  break;
 
@@ -648,22 +694,32 @@ int main(int argc, char** argv) {
                 std::cout << "Exiting...\n";
                  // Stop processing thread handled above
 
-                if (enableFlightControl && vehicle && flightSample) {
-                    std::cout << "Releasing Joystick Control Authority...\n";
-                    // Use synchronous release or wait after async
-                    vehicle->flightController->releaseJoystickCtrlAuthoritySync(functionTimeout);
-                    // Or async: vehicle->flightController->releaseJoystickCtrlAuthorityAsync(ReleaseJoystickCtrlAuthorityCB, nullptr);
-                    // std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait if async
+                if (enableFlightControl && vehicle && vehicle->control) { // Check vehicle and control
+                    std::cout << "Releasing Control Authority...\n";
+                    // Use base control release authority
+                    ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
+                     if (ACK::getError(releaseAck)) {
+                         ACK::getErrorCodeMessage(releaseAck, __func__);
+                         std::cerr << "Warning: Failed to release control authority." << std::endl;
+                     } else {
+                         std::cout << "Control Authority Released." << std::endl;
+                     }
 
                     // Consider landing the drone if it's flying
                      std::cout << "Ensure drone is landed before quitting.\n";
-                     // flightSample->monitoredLanding(); // Optional safety landing
+                     // Use flightSample for monitored landing if available
+                     // if (flightSample) flightSample->monitoredLanding(); // Optional safety landing
 
-                    delete flightSample; flightSample = nullptr;
+                    // Delete flightSample if it was created
+                    if (flightSample) {
+                        delete flightSample; flightSample = nullptr;
+                    }
                 }
                  if (linuxEnvironment) {
                     delete linuxEnvironment; linuxEnvironment = nullptr; // Clean up LinuxSetup
                  }
+                 // vehicle pointer is managed by linuxEnvironment, no need to delete separately
+
                 keepRunning = false; // Exit main loop
                 break;
             }
