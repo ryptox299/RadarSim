@@ -1,0 +1,596 @@
+2025-04-13 00:35:46 [INFO] --- Loading Preferences ---
+2025-04-13 00:35:46 [INFO] Preferences loaded from file.
+2025-04-13 00:35:46 [INFO]   Target Distance (Wall): 8.000000 m
+2025-04-13 00:35:46 [INFO]   Target Beacon ID:       BEACON-TX-ID:00005555
+2025-04-13 00:35:46 [INFO]   Kp (Wall):              0.500000
+2025-04-13 00:35:46 [INFO]   Wall Dead Zone:         0.200000 m
+2025-04-13 00:35:46 [INFO]   Kp (Azimuth):           0.080000
+2025-04-13 00:35:46 [INFO]   Azimuth Dead Zone:      0.500000 deg
+2025-04-13 00:35:46 [INFO]   Max Speed:              0.800000 m/s
+2025-04-13 00:35:46 [INFO] ---------------------------
+2025-04-13 00:35:46 [INFO] Select Operating Mode:
+2025-04-13 00:35:46 [INFO]   (a) Live Mode (Enables Flight Control, uses live data bridge: python_bridge.py)
+2025-04-13 00:35:46 [INFO]   (b) Test Mode (Disables Flight Control, uses test data bridge: python_bridge_LOCAL.py)
+Enter your choice: 2025-04-13 00:35:49 [INFO] Live Mode selected. Flight control enabled. Default bridge: python_bridge.py
+2025-04-13 00:35:49 [INFO] Initializing DJI OSDK...
+Read App ID
+User Configuration read successfully. 
+
+[744227.295]ERRORLOG/1 @ initVehicle, L222: Failed to initialize ACM Linker channel!
+[744227.323]STATUS/1 @ getDroneVersion, L1702: ret = 0
+[744227.323]STATUS/1 @ parseDroneVersionInfo, L1122: Device Serial No. = 1DADGB70010084
+[744227.323]STATUS/1 @ parseDroneVersionInfo, L1124: Firmware = 3.4.3.44
+[744227.323]STATUS/1 @ functionalSetUp, L279: Shake hand with drone successfully by getting drone version.
+[744227.324]STATUS/1 @ legacyX5SEnableTask, L56: Legacy X5S Enable task created.
+[744228.324]STATUS/1 @ sendHeartbeatToFCTask, L1576: OSDK send heart beat to fc task created.
+[744228.524]STATUS/1 @ Control, L40: The control class is going to be deprecated.It will be better to use the FlightController class instead!
+[744228.524]STATUS/1 @ FileMgrImpl, L253: register download file callback handler successfully.
+[744228.525]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[744228.525]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[744228.525]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[744228.525]STATUS/1 @ initDJIHms, L900: DJI HMS is not supported on this platform!
+
+[744228.525]STATUS/1 @ init, L247: USB is not plugged or initialized successfully. Advacned-Sensing will not run.
+[744228.525]STATUS/1 @ activate, L1329: version 0x304032C
+
+[744228.562]STATUS/1 @ activate, L1367: Activation successful
+
+2025-04-13 00:35:51 [INFO] Attempting to obtain Control Authority...
+2025-04-13 00:35:51 [INFO] Obtained Control Authority.
+2025-04-13 00:35:51 [INFO] OSDK Initialized and Flight Sample created.
+
+--- Main Menu ---
+| [t] Monitored Takeoff                     |
+| [l] Monitored Landing                     |
+| [w] Start Wall Following (Default Bridge) |
+| [h] Start Wall Following (TEST Bridge)    |
+| [e] Process Full Radar (No Control)       |
+| [f] Process Minimal Radar (No Control)    |
+| [g] Process Beacon/Wall Only (No Control) |
+| [s] STOP Current Processing Thread        |
+| [q] Quit                                  |
+---------------------------------------------
+Enter command: 2025-04-13 00:35:59 [INFO] Starting Wall Following using default bridge: python_bridge.py
+2025-04-13 00:35:59 [INFO] Processing thread started. Bridge: python_bridge.py, Control Enabled: true
+2025-04-13 00:35:59 [INFO] Starting Python bridge (python_bridge.py)...
+2025-04-13 00:35:59 [INFO] Keep-alive thread started. (Adding Variation)
+2025-04-13 00:35:59 [INFO] KeepAlive [1]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+
+--- Main Menu ---
+| [t] Monitored Takeoff                     |
+| [l] Monitored Landing                     |
+| [w] Start Wall Following (Default Bridge) |
+| [h] Start Wall Following (TEST Bridge)    |
+| [e] Process Full Radar (No Control)       |
+| [f] Process Minimal Radar (No Control)    |
+| [g] Process Beacon/Wall Only (No Control) |
+| [s] STOP Current Processing Thread        |
+| [q] Quit                                  |
+---------------------------------------------
+Enter command: 2025-04-13 00:35:59 [INFO] KeepAlive [2]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:35:59 [INFO] KeepAlive [3]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:35:59 [INFO] KeepAlive [4]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:00 [INFO] KeepAlive [5]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:00 [INFO] KeepAlive [6]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:00 [INFO] KeepAlive [7]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:00 [INFO] KeepAlive [8]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:00 [INFO] KeepAlive [9]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:00 [INFO] KeepAlive [10]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:00 [INFO] KeepAlive [11]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:01 [INFO] KeepAlive [12]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:01 [INFO] KeepAlive [13]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:01 [INFO] KeepAlive [14]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:01 [INFO] KeepAlive [15]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:01 [INFO] KeepAlive [16]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:01 [INFO] KeepAlive [17]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:01 [INFO] KeepAlive [18]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:02 [INFO] KeepAlive [19]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:02 [INFO] KeepAlive [20]: Sending flightCtrl: X=-0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:02 [INFO] Python bridge potentially started.
+2025-04-13 00:36:02 [INFO] Attempting connection to Python bridge...
+2025-04-13 00:36:02 [INFO] KeepAlive [21]: Sending flightCtrl: X=0.001000, Y=0.000000 [Varied]
+2025-04-13 00:36:02 [INFO] Connected to Python bridge.
+2025-04-13 00:36:02 [INFO] Processing thread: Reading data stream...
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 313 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 932 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 1854 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 3439 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] 1743607808: Wall dist: 2.040000m | Beacon Az: 20.000000 deg
+2025-04-13 00:36:02 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 323 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] 1743607809: Wall dist: 2.240000m | Beacon Az: 19.511112 deg
+2025-04-13 00:36:02 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] KeepAlive [22]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] KeepAlive [23]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] KeepAlive [24]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:02 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:02 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] KeepAlive [25]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] KeepAlive [26]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] KeepAlive [27]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] KeepAlive [28]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 323 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] 1743607810: Wall dist: 2.440000m | Beacon Az: 19.066668 deg
+2025-04-13 00:36:03 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] KeepAlive [29]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] KeepAlive [30]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:03 [INFO] KeepAlive [31]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:03 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:03 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] KeepAlive [32]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] KeepAlive [33]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] KeepAlive [34]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] KeepAlive [35]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 323 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] 1743607811: Wall dist: 2.639999m | Beacon Az: 18.622223 deg
+2025-04-13 00:36:04 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] KeepAlive [36]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] KeepAlive [37]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:04 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:04 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:04 [INFO] KeepAlive [38]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] KeepAlive [39]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] KeepAlive [40]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] KeepAlive [41]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] KeepAlive [42]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] KeepAlive [43]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] 1743607812: Wall dist: 2.839999m | Beacon Az: 18.177780 deg
+2025-04-13 00:36:05 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] KeepAlive [44]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 307 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:05 [INFO] Processing thread: socket.read_some returned 307 bytes. Error: Success
+2025-04-13 00:36:05 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] KeepAlive [45]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] KeepAlive [46]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] KeepAlive [47]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] KeepAlive [48]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] KeepAlive [49]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 325 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] KeepAlive [50]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] 1743607813: Wall dist: 3.039999m | Beacon Az: 17.733335 deg
+2025-04-13 00:36:06 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:06 [INFO] KeepAlive [51]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:06 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:06 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] KeepAlive [52]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] KeepAlive [53]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] KeepAlive [54]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] KeepAlive [55]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] KeepAlive [56]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] KeepAlive [57]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:07 [INFO] 1743607814: Wall dist: 3.239999m | Beacon Az: 17.288891 deg
+2025-04-13 00:36:07 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:07 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:07 [INFO] KeepAlive [58]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] KeepAlive [59]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] KeepAlive [60]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] KeepAlive [61]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] KeepAlive [62]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] KeepAlive [63]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:08 [INFO] KeepAlive [64]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:08 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:08 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] KeepAlive [65]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] 1743607815: Wall dist: 3.439999m | Beacon Az: 16.844448 deg
+2025-04-13 00:36:09 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] KeepAlive [66]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] KeepAlive [67]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] KeepAlive [68]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] KeepAlive [69]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] KeepAlive [70]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:09 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:09 [INFO] KeepAlive [71]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] KeepAlive [72]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] 1743607816: Wall dist: 3.639998m | Beacon Az: 16.400003 deg
+2025-04-13 00:36:10 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] KeepAlive [73]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] KeepAlive [74]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] KeepAlive [75]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] KeepAlive [76]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] KeepAlive [77]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:10 [INFO] KeepAlive [78]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:10 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:10 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 325 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] KeepAlive [79]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] 1743607817: Wall dist: 3.839998m | Beacon Az: 15.955560 deg
+2025-04-13 00:36:11 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] KeepAlive [80]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] KeepAlive [81]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 306 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] KeepAlive [82]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 306 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] KeepAlive [83]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 306 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:11 [INFO] KeepAlive [84]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:11 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:11 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] KeepAlive [85]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] KeepAlive [86]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 323 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] 1743607818: Wall dist: 4.039998m | Beacon Az: 15.511115 deg
+2025-04-13 00:36:12 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] KeepAlive [87]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] KeepAlive [88]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] KeepAlive [89]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] KeepAlive [90]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:12 [INFO] KeepAlive [91]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:12 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:12 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] KeepAlive [92]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] KeepAlive [93]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] KeepAlive [94]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] 1743607819: Wall dist: 4.239998m | Beacon Az: 15.066671 deg
+2025-04-13 00:36:13 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] KeepAlive [95]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] KeepAlive [96]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] KeepAlive [97]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:13 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:13 [INFO] KeepAlive [98]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] KeepAlive [99]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] KeepAlive [100]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 325 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] KeepAlive [101]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] 1743607820: Wall dist: 4.439998m | Beacon Az: 14.622228 deg
+2025-04-13 00:36:14 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] KeepAlive [102]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] KeepAlive [103]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:14 [INFO] KeepAlive [104]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:14 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:14 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] KeepAlive [105]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] KeepAlive [106]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] KeepAlive [107]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] KeepAlive [108]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 325 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] 1743607821: Wall dist: 4.639997m | Beacon Az: 14.177783 deg
+2025-04-13 00:36:15 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] KeepAlive [109]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] KeepAlive [110]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:15 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:15 [INFO] KeepAlive [111]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] KeepAlive [112]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] KeepAlive [113]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] KeepAlive [114]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] KeepAlive [115]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 325 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 325 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] 1743607822: Wall dist: 4.839997m | Beacon Az: 13.733339 deg
+2025-04-13 00:36:16 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] KeepAlive [116]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] KeepAlive [117]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:16 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:16 [INFO] KeepAlive [118]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] KeepAlive [119]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] KeepAlive [120]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 307 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 307 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] KeepAlive [121]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] KeepAlive [122]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 323 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] KeepAlive [123]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] 1743607823: Wall dist: 5.039997m | Beacon Az: 13.288896 deg
+2025-04-13 00:36:17 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:17 [INFO] KeepAlive [124]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:17 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:17 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] KeepAlive [125]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] KeepAlive [126]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] KeepAlive [127]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] KeepAlive [128]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] KeepAlive [129]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 323 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] KeepAlive [130]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 325 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] 1743607824: Wall dist: 5.239997m | Beacon Az: 12.844451 deg
+2025-04-13 00:36:18 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:18 [INFO] KeepAlive [131]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:18 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:18 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] KeepAlive [132]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] KeepAlive [133]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] KeepAlive [134]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] KeepAlive [135]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] KeepAlive [136]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 324 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] KeepAlive [137]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:19 [INFO] Processing thread: socket.read_some returned 323 bytes. Error: Success
+2025-04-13 00:36:19 [INFO] 1743607825: Wall dist: 5.439997m | Beacon Az: 12.400007 deg
+2025-04-13 00:36:19 [INFO]   Storing target velocities: X=-0.800000, Y=0.800000
+2025-04-13 00:36:19 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:19 [INFO] KeepAlive [138]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:20 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:20 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:20 [INFO] KeepAlive [139]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:20 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:20 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:20 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:20 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:20 [INFO] KeepAlive [140]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:20 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:20 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:20 [INFO] KeepAlive [141]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
+2025-04-13 00:36:20 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:20 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:20 [INFO] Processing thread: socket.read_some returned 309 bytes. Error: Success
+2025-04-13 00:36:20 [INFO] KeepAlive [142]: Sending flightCtrl: X=-0.801000, Y=0.800000 [Varied]
+2025-04-13 00:36:20 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:20 [INFO] Processing thread: socket.read_some returned 308 bytes. Error: Success
+2025-04-13 00:36:20 [INFO] Processing thread: Waiting for data (socket.read_some)...
+2025-04-13 00:36:20 [INFO] KeepAlive [143]: Sending flightCtrl: X=-0.799000, Y=0.800000 [Varied]
