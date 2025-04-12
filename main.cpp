@@ -11,6 +11,7 @@
 #include "flight_sample.hpp"
 #include "dji_linux_helpers.hpp"
 #include <limits> // For numeric limits
+#include <fstream> // For file reading
 
 using namespace DJI::OSDK;
 using namespace DJI::OSDK::Telemetry;
@@ -24,6 +25,26 @@ bool hasAnonData = false;  // Tracks whether any "anon" ID data exists for this 
 
 // Global variable to track the Python bridge script
 std::string pythonBridgeScript = "python_bridge.py";
+
+// Global variable for target distance
+float targetDistance = 8.0f;
+
+// Function to load preferences (e.g., target distance) from a file
+void loadPreferences() {
+    std::ifstream preferencesFile("preferences.txt");
+    if (preferencesFile.is_open()) {
+        std::string line;
+        while (std::getline(preferencesFile, line)) {
+            if (line.find("targetdistance=") == 0) {
+                targetDistance = std::stof(line.substr(line.find("=") + 1));
+                std::cout << "[DEBUG] Target distance set to: " << targetDistance << " meters (from preferences file)\n";
+            }
+        }
+        preferencesFile.close();
+    } else {
+        std::cout << "[DEBUG] Preferences file not found. Using default target distance: " << targetDistance << " meters.\n";
+    }
+}
 
 struct RadarObject {
     std::string timestamp;  // Changed from float to string to match JSON format
@@ -81,6 +102,11 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects) {
         // Extract the second from the timestamp (without milliseconds)
         std::string objSecond = obj.timestamp.substr(0, obj.timestamp.find('.'));
 
+        // Debug: Show the processing of each object
+        std::cout << "[DEBUG] Processing Object - ID: " << obj.ID 
+                  << ", Range: " << obj.Range 
+                  << ", Timestamp: " << obj.timestamp << "\n";
+
         // Ignore data from old seconds
         if (!currentSecond.empty() && objSecond < currentSecond) {
             continue;
@@ -88,9 +114,25 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects) {
 
         // If this is a new second
         if (objSecond != currentSecond) {
+            // Debug: Print current state
+            std::cout << "[DEBUG] currentSecond: " << currentSecond 
+                      << ", objSecond: " << objSecond 
+                      << ", hasAnonData: " << (hasAnonData ? "true" : "false") 
+                      << ", lowestRange: " << lowestRange << "\n";
+
             // Output the result for the previous second, if any
             if (!currentSecond.empty() && hasAnonData) {
                 std::cout << currentSecond << ": Likely WALL candidate distance: " << lowestRange << " meters\n";
+
+                // Compare the wall candidate's distance to the target distance
+                float difference = std::abs(targetDistance - lowestRange);
+                if (lowestRange < targetDistance) {
+                    std::cout << "Wall too close, move back " << difference << " meters.\n";
+                } else if (lowestRange > targetDistance) {
+                    std::cout << "Too far from wall, move forward " << difference << " meters.\n";
+                } else {
+                    std::cout << "Wall is at the target distance.\n";
+                }
             }
 
             // Update to the new second and reset tracking variables
@@ -108,8 +150,10 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects) {
 
         // Process anon IDs
         if (obj.ID.find("anon") != std::string::npos) {
+            std::cout << "[DEBUG] Found anon ID - ID: " << obj.ID << ", Range: " << obj.Range << "\n";
             hasAnonData = true;
             if (obj.Range < lowestRange) {
+                std::cout << "[DEBUG] Updating lowestRange: " << lowestRange << " -> " << obj.Range << "\n";
                 lowestRange = obj.Range;
             }
         }
@@ -197,6 +241,8 @@ void ReleaseJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData
 
 int main(int argc, char** argv) {
     // User input menu for Live or Test data
+    loadPreferences();
+
     char modeSelection;
     while (true) {
         std::cout << "Select mode:\n";
@@ -217,31 +263,14 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Initialize variables
-    int functionTimeout = 1;
-
-    // Setup OSDK
-    // LinuxSetup linuxEnvironment(argc, argv);
-
-    /*
-    Vehicle* vehicle = linuxEnvironment.getVehicle();
-    if (vehicle == NULL) {
-        std::cout << "Vehicle not initialized, exiting.\n";
-        return -1;
-    }
-
-    vehicle->flightController->obtainJoystickCtrlAuthorityAsync(ObtainJoystickCtrlAuthorityCB, nullptr, functionTimeout, 2);
-    FlightSample* flightSample = new FlightSample(vehicle);
-    */
-
     while (true) {
         // Display interactive prompt
         std::cout
             << "| Available commands: |\n"
-            /* << "| [a] Monitored Takeoff + Landing |\n"
+            << "| [a] Monitored Takeoff + Landing |\n"
             << "| [b] Monitored Takeoff + Position Control + Landing |\n"
             << "| [c] Monitored Takeoff + Position Control + Force Landing |\n"
-            << "| [d] Monitored Takeoff + Velocity Control + Landing |\n" */
+            << "| [d] Monitored Takeoff + Velocity Control + Landing |\n"
             << "| [e] Radar data processing |\n"
             << "| [f] Radar data processing (minimal fields) |\n"
             << "| [g] EXPERIMENTAL |\n"
@@ -251,31 +280,37 @@ int main(int argc, char** argv) {
         std::cin >> inputChar;
 
         switch (inputChar) {
-            /*
             case 'a': {
+                /*
                 flightSample->monitoredTakeoff();
                 flightSample->monitoredLanding();
+                */
                 break;
             }
             case 'b': {
+                /*
                 flightSample->monitoredTakeoff();
                 flightSample->moveByPositionOffset({0, 6, 6}, 30, 0.8, 1);
                 flightSample->monitoredLanding();
+                */
                 break;
             }
             case 'c': {
+                /*
                 flightSample->monitoredTakeoff();
                 flightSample->moveByPositionOffset({0, 0, 30}, 0, 0.8, 1);
                 flightSample->goHomeAndConfirmLanding();
+                */
                 break;
             }
             case 'd': {
+                /*
                 flightSample->monitoredTakeoff();
                 flightSample->velocityAndYawRateCtrl({0, 0, 5.0}, 0, 2000);
                 flightSample->monitoredLanding();
+                */
                 break;
             }
-            */
             case 'e': { // Full radar data processing
                 try {
                     runPythonBridge();
