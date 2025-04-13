@@ -8,34 +8,34 @@ Initializing DJI OSDK...
 Read App ID
 User Configuration read successfully. 
 
-[826659.793]ERRORLOG/1 @ initVehicle, L222: Failed to initialize ACM Linker channel!
-[826659.823]STATUS/1 @ getDroneVersion, L1702: ret = 0
-[826659.823]STATUS/1 @ parseDroneVersionInfo, L1122: Device Serial No. = 1DADGB70010084
-[826659.823]STATUS/1 @ parseDroneVersionInfo, L1124: Firmware = 3.4.3.44
-[826659.823]STATUS/1 @ functionalSetUp, L279: Shake hand with drone successfully by getting drone version.
-[826659.823]STATUS/1 @ legacyX5SEnableTask, L56: Legacy X5S Enable task created.
-[826660.823]STATUS/1 @ sendHeartbeatToFCTask, L1576: OSDK send heart beat to fc task created.
-[826661.058]STATUS/1 @ removePackage, L457: Remove package 0 successful.
-[826661.058]STATUS/1 @ Control, L40: The control class is going to be deprecated.It will be better to use the FlightController class instead!
-[826661.059]STATUS/1 @ FileMgrImpl, L253: register download file callback handler successfully.
-[826661.059]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
-[826661.059]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
-[826661.059]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
-[826661.060]STATUS/1 @ initDJIHms, L900: DJI HMS is not supported on this platform!
+[827432.987]ERRORLOG/1 @ initVehicle, L222: Failed to initialize ACM Linker channel!
+[827433.009]STATUS/1 @ getDroneVersion, L1702: ret = 0
+[827433.009]STATUS/1 @ parseDroneVersionInfo, L1122: Device Serial No. = 1DADGB70010084
+[827433.009]STATUS/1 @ parseDroneVersionInfo, L1124: Firmware = 3.4.3.44
+[827433.009]STATUS/1 @ functionalSetUp, L279: Shake hand with drone successfully by getting drone version.
+[827433.009]STATUS/1 @ legacyX5SEnableTask, L56: Legacy X5S Enable task created.
+[827434.009]STATUS/1 @ sendHeartbeatToFCTask, L1576: OSDK send heart beat to fc task created.
+[827434.246]STATUS/1 @ removePackage, L457: Remove package 0 successful.
+[827434.246]STATUS/1 @ Control, L40: The control class is going to be deprecated.It will be better to use the FlightController class instead!
+[827434.246]STATUS/1 @ FileMgrImpl, L253: register download file callback handler successfully.
+[827434.246]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[827434.246]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[827434.246]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[827434.246]STATUS/1 @ initDJIHms, L900: DJI HMS is not supported on this platform!
 
-[826661.060]STATUS/1 @ init, L247: USB is not plugged or initialized successfully. Advacned-Sensing will not run.
-[826661.060]STATUS/1 @ activate, L1329: version 0x304032C
+[827434.247]STATUS/1 @ init, L247: USB is not plugged or initialized successfully. Advacned-Sensing will not run.
+[827434.247]STATUS/1 @ activate, L1329: version 0x304032C
 
-[826661.099]STATUS/1 @ activate, L1367: Activation successful
+[827434.285]STATUS/1 @ activate, L1367: Activation successful
 
 Attempting to obtain Control Authority...
 Obtained Control Authority.
 OSDK Initialized and Flight Sample created.
 Setting up Telemetry Subscription for Monitoring...
-[826662.178]STATUS/1 @ verify, L244: Verify subscription successful.
+[827435.367]STATUS/1 @ verify, L244: Verify subscription successful.
 Successfully initialized package 0 with Flight Status and Display Mode topics.
-[826662.205]STATUS/1 @ startPackage, L345: Start package 0 result: 0.
-[826662.205]STATUS/1 @ startPackage, L347: Package 0 info: freq=1, nTopics=2.
+[827435.392]STATUS/1 @ startPackage, L345: Start package 0 result: 0.
+[827435.392]STATUS/1 @ startPackage, L347: Package 0 info: freq=1, nTopics=2.
 
 Successfully started package 0.
 Starting monitoring thread...
@@ -43,18 +43,18 @@ Starting monitoring thread...
 INFO: Flight control is ENABLED proceeding to main menu.
 
 --- Main Menu ---
-| [t] Monitored Takeoff                     |
+[Monitoring] Thread started.| [t] Monitored Takeoff                     |
 | [l] Monitored Landing                     |
 | [w] Start Wall+Beacon Following (Default) |
-[Monitoring] Thread started.| [h] Start Wall+Beacon Following (TEST)    |
+| [h] Start Wall+Beacon Following (TEST)    |
 | [e] Process Full Radar (No Control)       |
 | [f] Process Minimal Radar (No Control)    |
 | [g] Process Beacon/Wall Only (No Control) |
 | [s] STOP Current Processing Thread        |
+
 | [q] Quit                                  |
 ---------------------------------------------
 Enter command: 
-
 
 **** MONITORING WARNING ****
 NOT in expected SDK Control Mode (NAVI_SDK_CTRL / 17).
@@ -75,30 +75,32 @@ Starting Wall+Beacon Following using default bridge: python_bridge.py
 Processing thread started. Bridge: | [s] STOP Current Processing Thread        |
 | [q] Quit                                  |
 ---------------------------------------------
-Enter command: python_bridge.py, Control Enabled: true
+python_bridge.pyEnter command: , Control Enabled: true
 Starting Python bridge (python_bridge.py)...
-2025-04-13 23:29:47,330 - INFO - Starting Python Bridge Server...
-2025-04-13 23:29:47,332 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
+2025-04-13 23:42:52,938 - INFO - Starting Python Bridge Server...
+2025-04-13 23:42:52,939 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
 Python bridge potentially started.
 Connected to Python bridge.
+[Processing Thread] Attempting to re-obtain Control Authority after reconnect...
+2025-04-13 23:42:55,688 - INFO - C++ client connected: ('127.0.0.1', 39908)
+2025-04-13 23:42:55,688 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 39908)
+2025-04-13 23:42:55,690 - INFO - Successfully connected to simulator for client ('127.0.0.1', 39908)
+[Processing Thread] Successfully re-obtained Control Authority.
 Processing thread: Connection successful. Reading data stream...
-2025-04-13 23:29:50,130 - INFO - C++ client connected: ('127.0.0.1', 49648)
-2025-04-13 23:29:50,131 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 49648)
-2025-04-13 23:29:50,134 - INFO - Successfully connected to simulator for client ('127.0.0.1', 49648)
 1743607808: Likely WALL candidate distance: 2.04 meters. Target BEACON Azimuth: 20 deg.
 Control Status: TargetWall=8 | CurrentWall=2.040000 | TargetAzimuth=0 | CurrentAzimuth=20.000000 | Computed Velocity(X=-0.8, Y=0.4) (Body Frame)
 [DEBUG] Sending flightCtrl command for second 1743607808: X=-0.8, Y=0.4
 [DEBUG] flightCtrl command sent for second 1743607808.
-1743607809: Likely WALL candidate distance: 2.24 meters. Target BEACON Azimuth: 19.5111 deg.
-Control Status: TargetWall=8 | CurrentWall=2.240000 | TargetAzimuth=0 | CurrentAzimuth=19.511112 | Computed Velocity(X=-0.8, Y=0.390222) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607809: X=-0.8, Y=0.390222
-[DEBUG] flightCtrl command sent for second 1743607809.
 
 
 **** MONITORING INFO ****
 Entered SDK Control Mode (NAVI_SDK_CTRL / 17)
 **** MONITORING INFO ****
 
+1743607809: Likely WALL candidate distance: 2.24 meters. Target BEACON Azimuth: 19.5111 deg.
+Control Status: TargetWall=8 | CurrentWall=2.240000 | TargetAzimuth=0 | CurrentAzimuth=19.511112 | Computed Velocity(X=-0.8, Y=0.390222) (Body Frame)
+[DEBUG] Sending flightCtrl command for second 1743607809: X=-0.8, Y=0.390222
+[DEBUG] flightCtrl command sent for second 1743607809.
 1743607810: Likely WALL candidate distance: 2.44 meters. Target BEACON Azimuth: 19.0667 deg.
 Control Status: TargetWall=8 | CurrentWall=2.440000 | TargetAzimuth=0 | CurrentAzimuth=19.066668 | Computed Velocity(X=-0.8, Y=0.381333) (Body Frame)
 [DEBUG] Sending flightCtrl command for second 1743607810: X=-0.8, Y=0.381333
@@ -267,28 +269,30 @@ Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentA
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=0.844463 | Computed Velocity(X=0, Y=0) (Body Frame)
 [DEBUG] Sending flightCtrl command for second 1743607851: X=0, Y=0
 [DEBUG] flightCtrl command sent for second 1743607851.
-2025-04-13 23:30:38,243 - WARNING - Simulator connection closed or incomplete read for client ('127.0.0.1', 49648): 0 bytes read on a total of 4 expected bytes
-2025-04-13 23:30:38,243 - INFO - Cleaning up connections for C++ client ('127.0.0.1', 49648)
-2025-04-13 23:30:38,243 - INFO - C++ writer closed for ('127.0.0.1', 49648)
+2025-04-13 23:43:43,714 - WARNING - Simulator connection closed or incomplete read for client ('127.0.0.1', 39908): 0 bytes read on a total of 4 expected bytes
+2025-04-13 23:43:43,714 - INFO - Cleaning up connections for C++ client ('127.0.0.1', 39908)
 Processing thread: Connection closed by Python bridge (EOF).
 Connection lost detected. Handling reconnect...
 Stopping Python bridge (python_bridge.py)...
-2025-04-13 23:30:38,244 - INFO - Simulator writer closed for client ('127.0.0.1', 49648)
-2025-04-13 23:30:38,245 - INFO - Finished cleanup for C++ client ('127.0.0.1', 49648)
+2025-04-13 23:43:43,715 - INFO - C++ writer closed for ('127.0.0.1', 39908)
+2025-04-13 23:43:43,715 - INFO - Simulator writer closed for client ('127.0.0.1', 39908)
+2025-04-13 23:43:43,716 - INFO - Finished cleanup for C++ client ('127.0.0.1', 39908)
 Sent SIGTERM and waited briefly for python_bridge.py.
 Resetting processing state variables (currentSecond, etc.)...
 Waiting 5 seconds before reconnect attempt 1/3...
 Proceeding to next reconnect attempt...
 --- Reconnect Attempt 1 ---
 Starting Python bridge (python_bridge.py)...
-2025-04-13 23:30:44,567 - INFO - Starting Python Bridge Server...
-2025-04-13 23:30:44,569 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
+2025-04-13 23:43:50,050 - INFO - Starting Python Bridge Server...
+2025-04-13 23:43:50,052 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
 Python bridge potentially started.
 Connected to Python bridge.
+[Processing Thread] Attempting to re-obtain Control Authority after reconnect...
+2025-04-13 23:43:52,781 - INFO - C++ client connected: ('127.0.0.1', 38120)
+2025-04-13 23:43:52,781 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 38120)
+2025-04-13 23:43:52,783 - INFO - Successfully connected to simulator for client ('127.0.0.1', 38120)
+[Processing Thread] Successfully re-obtained Control Authority.
 Processing thread: Connection successful. Reading data stream...
-2025-04-13 23:30:47,310 - INFO - C++ client connected: ('127.0.0.1', 35934)
-2025-04-13 23:30:47,311 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 35934)
-2025-04-13 23:30:47,314 - INFO - Successfully connected to simulator for client ('127.0.0.1', 35934)
 1743607808: Likely WALL candidate distance: 2.04 meters. Target BEACON Azimuth: 20 deg.
 Control Status: TargetWall=8 | CurrentWall=2.040000 | TargetAzimuth=0 | CurrentAzimuth=20.000000 | Computed Velocity(X=-0.8, Y=0.4) (Body Frame)
 [DEBUG] Sending flightCtrl command for second 1743607808: X=-0.8, Y=0.4
@@ -321,10 +325,6 @@ Control Status: TargetWall=8 | CurrentWall=3.239999 | TargetAzimuth=0 | CurrentA
 Control Status: TargetWall=8 | CurrentWall=3.439999 | TargetAzimuth=0 | CurrentAzimuth=16.844448 | Computed Velocity(X=-0.8, Y=0.336889) (Body Frame)
 [DEBUG] Sending flightCtrl command for second 1743607815: X=-0.8, Y=0.336889
 [DEBUG] flightCtrl command sent for second 1743607815.
-1743607816: Likely WALL candidate distance: 3.64 meters. Target BEACON Azimuth: 16.4 deg.
-Control Status: TargetWall=8 | CurrentWall=3.639998 | TargetAzimuth=0 | CurrentAzimuth=16.400003 | Computed Velocity(X=-0.8, Y=0.328) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607816: X=-0.8, Y=0.328
-[DEBUG] flightCtrl command sent for second 1743607816.
 
 
 **** MONITORING WARNING ****
@@ -332,55 +332,7 @@ NOT in expected SDK Control Mode (NAVI_SDK_CTRL / 17).
 Current Mode: P_GPS / 6. RC may have control.
 **** MONITORING WARNING ****
 
-1743607817: Likely WALL candidate distance: 3.84 meters. Target BEACON Azimuth: 15.9556 deg.
-Control Status: TargetWall=8 | CurrentWall=3.839998 | TargetAzimuth=0 | CurrentAzimuth=15.955560 | Computed Velocity(X=-0.8, Y=0.319111) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607817: X=-0.8, Y=0.319111
-[DEBUG] flightCtrl command sent for second 1743607817.
-1743607818: Likely WALL candidate distance: 4.04 meters. Target BEACON Azimuth: 15.5111 deg.
-Control Status: TargetWall=8 | CurrentWall=4.039998 | TargetAzimuth=0 | CurrentAzimuth=15.511115 | Computed Velocity(X=-0.8, Y=0.310222) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607818: X=-0.8, Y=0.310222
-[DEBUG] flightCtrl command sent for second 1743607818.
-1743607819: Likely WALL candidate distance: 4.24 meters. Target BEACON Azimuth: 15.0667 deg.
-Control Status: TargetWall=8 | CurrentWall=4.239998 | TargetAzimuth=0 | CurrentAzimuth=15.066671 | Computed Velocity(X=-0.8, Y=0.301333) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607819: X=-0.8, Y=0.301333
-[DEBUG] flightCtrl command sent for second 1743607819.
-1743607820: Likely WALL candidate distance: 4.44 meters. Target BEACON Azimuth: 14.6222 deg.
-Control Status: TargetWall=8 | CurrentWall=4.439998 | TargetAzimuth=0 | CurrentAzimuth=14.622228 | Computed Velocity(X=-0.8, Y=0.292445) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607820: X=-0.8, Y=0.292445
-[DEBUG] flightCtrl command sent for second 1743607820.
-1743607821: Likely WALL candidate distance: 4.64 meters. Target BEACON Azimuth: 14.1778 deg.
-Control Status: TargetWall=8 | CurrentWall=4.639997 | TargetAzimuth=0 | CurrentAzimuth=14.177783 | Computed Velocity(X=-0.8, Y=0.283556) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607821: X=-0.8, Y=0.283556
-[DEBUG] flightCtrl command sent for second 1743607821.
-2025-04-13 23:31:03,543 - WARNING - Simulator connection reset for client ('127.0.0.1', 35934).
-2025-04-13 23:31:03,543 - INFO - Cleaning up connections for C++ client ('127.0.0.1', 35934)
-Processing thread: Connection closed by Python bridge (EOF).
-Connection lost detected. Handling reconnect...
-Stopping Python bridge (python_bridge.py)...
-2025-04-13 23:31:03,544 - INFO - C++ writer closed for ('127.0.0.1', 35934)
-2025-04-13 23:31:03,544 - INFO - Finished cleanup for C++ client ('127.0.0.1', 35934)
-Sent SIGTERM and waited briefly for python_bridge.py.
-Resetting processing state variables (currentSecond, etc.)...
-Waiting 5 seconds before reconnect attempt 1/3...
-s
-Signalling previous processing thread to stop...
-Stop requested during reconnect wait.
-Processing thread: Exiting outer loop.
-Stopping Python bridge (python_bridge.py)...
-Sent SIGTERM and waited briefly for python_bridge.py.
-Processing thread finished.
-Previous processing thread has finished.
-No processing thread is currently active.
-
---- Main Menu ---
-| [t] Monitored Takeoff                     |
-| [l] Monitored Landing                     |
-| [w] Start Wall+Beacon Following (Default) |
-| [h] Start Wall+Beacon Following (TEST)    |
-| [e] Process Full Radar (No Control)       |
-| [f] Process Minimal Radar (No Control)    |
-| [g] Process Beacon/Wall Only (No Control) |
-| [s] STOP Current Processing Thread        |
-| [q] Quit                                  |
----------------------------------------------
-Enter command: 
+1743607816: Likely WALL candidate distance: 3.64 meters. Target BEACON Azimuth: 16.4 deg.
+Control Status: TargetWall=8 | CurrentWall=3.639998 | TargetAzimuth=0 | CurrentAzimuth=16.400003 | Computed Velocity(X=-0.8, Y=0.328) (Body Frame)
+[DEBUG] Sending flightCtrl command for second 1743607816: X=-0.8, Y=0.328
+[DEBUG] flightCtrl command sent for second 1743607816.
