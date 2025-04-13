@@ -12,7 +12,7 @@
 #include "dji_linux_helpers.hpp"
 #include <limits> // For numeric limits
 #include <fstream> // For file reading
-#include <cmath> // For std::abs
+#include <cmath> // For std::abs, std::isnan
 #include <atomic> // For thread-safe stop flag
 #include <cstring> // For strchr
 #include <stdexcept> // For standard exceptions
@@ -27,20 +27,33 @@ using namespace DJI::OSDK::Telemetry; // If using Telemetry data elsewhere
 using json = nlohmann::json;
 using boost::asio::ip::tcp;
 
-// Persistent variables for tracking the current second and wall candidate data
+// ***** ADDED ***** Target Beacon ID Constant
+const std::string TARGET_BEACON_ID = "BEACON-TX-ID:00005555";
+
+// Persistent variables for tracking the current second and wall/beacon candidate data
+// ***** These are reset on disconnect in processingLoopFunction *****
 std::string currentSecond = "";  // Tracks the current second being processed
-float lowestRange = std::numeric_limits<float>::max();  // Tracks the lowest range for the current second
-bool hasAnonData = false;  // Tracks whether any "anon" ID data exists for this second
+float lowestRange = std::numeric_limits<float>::max();  // Tracks the lowest range for the current second (potential wall)
+bool hasAnonData = false;  // Tracks whether any "anon" ID data exists for this second (wall candidate)
+float targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN(); // Tracks the azimuth of the target beacon for the current second
+bool foundTargetBeacon = false; // Tracks if the target beacon was found this second
+// ********************************************************************
 
 // Global variable for default Python bridge script (set by initial mode selection)
 std::string defaultPythonBridgeScript = "python_bridge.py";
 
-// Global variable for target distance
+// Global variable for target distance (forward/backward from wall)
 float targetDistance = 8.0f;
 
 // Flag to control the processing loop in a separate thread
 std::atomic<bool> stopProcessingFlag(false);
 std::thread processingThread; // Thread object for radar processing
+
+// ***** ADDED ***** Lateral Control Parameters (NEEDS TUNING)
+float Kp_lateral = 0.02; // Proportional gain for lateral control based on azimuth (Azimuth is in degrees, output is m/s)
+float max_lateral_speed = 0.5; // Maximum lateral speed in m/s
+float azimuth_dead_zone = 1.5; // Azimuth tolerance in degrees (don't correct if beacon is within +/- this angle)
+
 
 // Function to load preferences (e.g., target distance) from a file
 void loadPreferences() {
@@ -58,10 +71,23 @@ void loadPreferences() {
                      std::cerr << "Target distance out of range in preferences file: " << line << std::endl;
                 }
             }
+            // ***** ADDED ***** Load lateral control parameters from file (optional)
+            else if (line.find("kp_lateral=") == 0) {
+                 try { Kp_lateral = std::stof(line.substr(line.find("=") + 1)); std::cout << "Kp_lateral set to: " << Kp_lateral << " (from preferences file)\n"; } catch (...) { std::cerr << "Invalid Kp_lateral format.\n"; }
+            } else if (line.find("max_lateral_speed=") == 0) {
+                 try { max_lateral_speed = std::stof(line.substr(line.find("=") + 1)); std::cout << "max_lateral_speed set to: " << max_lateral_speed << " (from preferences file)\n"; } catch (...) { std::cerr << "Invalid max_lateral_speed format.\n"; }
+            } else if (line.find("azimuth_dead_zone=") == 0) {
+                 try { azimuth_dead_zone = std::stof(line.substr(line.find("=") + 1)); std::cout << "azimuth_dead_zone set to: " << azimuth_dead_zone << " (from preferences file)\n"; } catch (...) { std::cerr << "Invalid azimuth_dead_zone format.\n"; }
+            }
         }
         preferencesFile.close();
     } else {
-        std::cout << "Preferences file not found. Using default target distance: " << targetDistance << " meters.\n";
+        std::cout << "Preferences file not found. Using default values.\n";
+        std::cout << "Default target distance: " << targetDistance << " meters.\n";
+        // ***** ADDED ***** Log default lateral params
+        std::cout << "Default Kp_lateral: " << Kp_lateral << std::endl;
+        std::cout << "Default max_lateral_speed: " << max_lateral_speed << std::endl;
+        std::cout << "Default azimuth_dead_zone: " << azimuth_dead_zone << std::endl;
     }
 }
 
@@ -122,10 +148,8 @@ void displayRadarObjectsMinimal(const std::vector<RadarObject>& objects) {
 // Modified function accepts Vehicle pointer (can be nullptr)
 // Now also includes logic to stop based on stopProcessingFlag
 // Velocity commands are now relative to the drone's BODY FRAME using control->flightCtrl
+// Includes lateral control based on target beacon azimuth
 void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) { // Parameter is Vehicle*
-     // Reset persistent variables at the start of processing a new batch if necessary
-     // This might depend on how frequently this function is called relative to data batches
-     // For now, assuming it processes a stream and state persists across calls within a run.
 
     for (const auto& obj : objects) {
          if (stopProcessingFlag.load()) return; // Check flag before processing each object
@@ -152,84 +176,121 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
         // Consider parsing to a comparable time format if strict ordering is needed.
         // For now, assuming roughly sequential seconds.
         // Ignore data from old seconds (basic check)
+        // ***** NOTE: This check uses the GLOBAL currentSecond which is reset on disconnect *****
         if (!currentSecond.empty() && objSecond < currentSecond) {
             // std::cout << "Skipping old data: " << obj.timestamp << std::endl; // Debugging
             continue;
         }
 
-        // If this is a new second
+        // If this is a new second - Process data from the *previous* second
+        // ***** NOTE: This check uses the GLOBAL currentSecond which is reset on disconnect *****
         if (objSecond != currentSecond) {
             // Output the result for the previous second, if any, and command drone movement
-            if (!currentSecond.empty() && hasAnonData) {
-                std::cout << currentSecond << ": Likely WALL candidate distance: " << lowestRange << " meters\n";
+            // ***** NOTE: This check uses the GLOBAL state vars which are reset on disconnect *****
+            if (!currentSecond.empty() && (hasAnonData || foundTargetBeacon)) { // Process if we have wall OR beacon data
+
+                if (hasAnonData) {
+                    std::cout << currentSecond << ": Likely WALL candidate distance: " << lowestRange << " meters. ";
+                } else {
+                    std::cout << currentSecond << ": No WALL candidate found. ";
+                }
+                if (foundTargetBeacon) {
+                    std::cout << "Target BEACON Azimuth: " << targetBeaconAzimuth << " deg.\n";
+                } else {
+                    std::cout << "Target BEACON not found.\n";
+                }
+
 
                 // --- Movement Logic ---
                 // Use the passed-in vehicle pointer and its 'control' member
                 if (enableControl && vehicle != nullptr && vehicle->control != nullptr) { // Check enableControl, vehicle AND control pointers
 
-                    // ***** CORRECTED DIFFERENCE CALCULATION *****
-                    float difference = lowestRange - targetDistance; // Error = current - target
-                    // ***** END CORRECTION *****
+                    // -- Calculate Forward/Backward Velocity (X) based on Wall Distance --
+                    float velocity_x = 0.0f; // Default to no forward/backward movement
+                    if (hasAnonData) { // Only adjust X if wall is detected
+                        float difference = lowestRange - targetDistance; // Error = current - target
+                        float Kp = 0.5; // Proportional gain (NEEDS TUNING)
+                        float max_speed = 0.8; // Maximum speed in m/s (NEEDS TUNING)
+                        float dead_zone = 0.2; // Distance tolerance in meters (NEEDS TUNING)
 
-                    float Kp = 0.5; // Proportional gain (NEEDS TUNING)
-                    float max_speed = 0.8; // Maximum speed in m/s (NEEDS TUNING)
-                    float dead_zone = 0.2; // Distance tolerance in meters (NEEDS TUNING)
-                    // uint32_t command_duration_ms = 200; // Duration not used by flightCtrl
+                        if (std::abs(difference) > dead_zone) { // Only move if outside the dead zone
+                            velocity_x = Kp * difference;
+                            // Clamp velocity to max_speed
+                            velocity_x = std::max(-max_speed, std::min(max_speed, velocity_x));
+                        }
+                        // If within dead zone, velocity_x remains 0
+                    }
+
+                    // -- Calculate Lateral Velocity (Y) based on Beacon Azimuth --
+                    float velocity_y = 0.0f; // Default to no lateral movement
+                    if (foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) { // Check if beacon was found and Azimuth is valid
+                        if (std::abs(targetBeaconAzimuth) > azimuth_dead_zone) {
+                            // Azimuth is likely in degrees, Kp_lateral should scale it appropriately to m/s
+                            // Positive Azimuth means beacon is to the right -> move right (positive Y velocity)
+                            // Negative Azimuth means beacon is to the left -> move left (negative Y velocity)
+                            velocity_y = Kp_lateral * targetBeaconAzimuth;
+                            // Clamp lateral velocity
+                            velocity_y = std::max(-max_lateral_speed, std::min(max_lateral_speed, velocity_y));
+                        }
+                        // If within dead zone, velocity_y remains 0
+                    }
 
                     // Define the control flag for body frame velocity control
-                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | // Control horizontal velocity
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | // Control horizontal velocity (X and Y)
                                           DJI::OSDK::Control::VERTICAL_VELOCITY   | // Control vertical velocity (set to 0)
                                           DJI::OSDK::Control::YAW_RATE            | // Control yaw rate (set to 0)
                                           DJI::OSDK::Control::HORIZONTAL_BODY     | // Use Body Frame for horizontal
                                           DJI::OSDK::Control::STABLE_ENABLE;        // Use stable mode (brake when input is 0)
 
 
-                    if (std::abs(difference) > dead_zone) { // Only move if outside the dead zone
-                        // Note: The sign of velocity_x is now correct due to the changed difference calculation
-                        float velocity_x = Kp * difference;
-                        // Clamp velocity to max_speed
-                        velocity_x = std::max(-max_speed, std::min(max_speed, velocity_x));
+                    // Create CtrlData struct for movement (always create, might be zero)
+                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, 0, 0); // flag, x, y, z, yaw(rate)
 
-                        std::cout << "Adjusting position: Current=" << lowestRange
-                                  << ", Target=" << targetDistance
-                                  << ", VelocityX=" << velocity_x << " (Body Frame)" << std::endl;
+                    // Log computed velocities and target/current values
+                    std::cout << "Control Status: TargetWall=" << targetDistance
+                                << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A")
+                                << " | TargetAzimuth=0"
+                                << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A")
+                                << " | Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ") (Body Frame)" << std::endl;
 
-                        // Create CtrlData struct for movement
-                        DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, 0, 0, 0); // flag, x, y, z, yaw(rate)
+                    // Send control command using the base Control object
+                    vehicle->control->flightCtrl(ctrlData);
 
-                        // Send control command using the base Control object
-                        vehicle->control->flightCtrl(ctrlData);
 
+                    // Optional: Add specific log if holding position vs adjusting
+                    if (velocity_x == 0.0f && velocity_y == 0.0f) {
+                         // std::cout << "--> Holding position (within dead zones)." << std::endl;
                     } else {
-                        std::cout << "Wall is within target distance tolerance.\n";
-
-                        // Create CtrlData struct for stopping (zero velocity)
-                        DJI::OSDK::Control::CtrlData ctrlData(controlFlag, 0, 0, 0, 0); // flag, x=0, y=0, z=0, yaw(rate)=0
-
-                        // Send control command using the base Control object
-                        vehicle->control->flightCtrl(ctrlData);
+                         // std::cout << "--> Sending adjustment command." << std::endl;
                     }
-                } else if (hasAnonData) { // Only print if wall data was found (and control was intended but vehicle/control is null)
+
+
+                } else if (hasAnonData || foundTargetBeacon) { // Only print if wall or beacon data was found (and control was intended but vehicle/control is null)
                      std::cout << "(Flight Control Disabled or Not Available)\n";
                 }
                  // --- End Movement Logic ---
 
             }
 
-            // Update to the new second and reset tracking variables
+            // Update to the new second and reset tracking variables for the *next* second
+            // ***** NOTE: These assignments use the GLOBAL state vars which are reset on disconnect *****
             currentSecond = objSecond;
-            lowestRange = std::numeric_limits<float>::max();  // Reset lowest range
-            hasAnonData = false;  // Reset flag for anon data
+            lowestRange = std::numeric_limits<float>::max();
+            hasAnonData = false;
+            targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN(); // Reset beacon azimuth
+            foundTargetBeacon = false; // Reset beacon found flag
         }
 
-        // Process BEACON IDs
-        if (obj.ID.find("BEACON") != std::string::npos) {
+        // --- Data Accumulation for the Current Second ---
+
+        // Process BEACON IDs (Generic - keep for potential other beacons)
+        if (obj.ID.find("BEACON") != std::string::npos && obj.ID != TARGET_BEACON_ID) {
             size_t firstDigit = obj.ID.find_first_of("0123456789");
             if (firstDigit != std::string::npos) {
                 std::string numericalValue = obj.ID.substr(firstDigit);
-                std::cout << "Beacon " << numericalValue << " located at " << obj.Range << " meters\n";
+                // std::cout << "Other Beacon " << numericalValue << " located at " << obj.Range << " meters\n"; // Optional logging
             } else {
-                 std::cout << "Beacon (no number) located at " << obj.Range << " meters\n";
+                 // std::cout << "Other Beacon (no number) located at " << obj.Range << " meters\n"; // Optional logging
             }
         }
 
@@ -240,6 +301,19 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
                 lowestRange = obj.Range;
             }
         }
+
+        // ***** ADDED ***** Process specific target beacon
+        // Store the azimuth of the *first* detection of the target beacon within this second
+        if (!foundTargetBeacon && obj.ID == TARGET_BEACON_ID) {
+            targetBeaconAzimuth = obj.Az;
+            foundTargetBeacon = true;
+            // Optional: Log instant detection
+            // std::cout << "Target Beacon (" << TARGET_BEACON_ID << ") detected this second at Azimuth: " << targetBeaconAzimuth << std::endl;
+        }
+
+        // --- End Data Accumulation ---
+
+
          if (stopProcessingFlag.load()) return; // Check flag again after processing
     }
 }
@@ -251,48 +325,71 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
     }
 
     // Use json::parse directly, exceptions will be caught by the caller
-    auto jsonFrame = json::parse(jsonData); // This might throw
+    try { // Added try-catch specifically around parse
+        auto jsonFrame = json::parse(jsonData); // This might throw
 
-    // Check if "objects" key exists and is an array
-    if (!jsonFrame.contains("objects") || !jsonFrame["objects"].is_array()) { // Corrected key name
-        // Treat it as valid but empty for now.
-        return radarObjects; // Return empty vector
-    }
-
-    for (const auto& obj : jsonFrame["objects"]) {
-        // Basic check if obj is an object
-        if (!obj.is_object()) {
-            std::cerr << "Skipping non-object item in 'objects' array." << std::endl;
-            continue;
+        // Check if "objects" key exists and is an array
+        if (!jsonFrame.contains("objects") || !jsonFrame["objects"].is_array()) { // Corrected key name
+            // Treat it as valid but empty for now.
+            return radarObjects; // Return empty vector
         }
 
-        RadarObject radarObj;
-        // Use .value("key", default_value) for robustness against missing keys
+        for (const auto& obj : jsonFrame["objects"]) {
+            // Basic check if obj is an object
+            if (!obj.is_object()) {
+                std::cerr << "Skipping non-object item in 'objects' array." << std::endl;
+                continue;
+            }
 
-        // Use .dump() for timestamp to handle numbers or strings
-        radarObj.timestamp = obj.value("timestamp", json(nullptr)).dump();
+            RadarObject radarObj;
+            // Use .value("key", default_value) for robustness against missing keys
 
-        radarObj.sensor = obj.value("sensor", "N/A");
-        radarObj.src = obj.value("src", "N/A");
-        radarObj.X = obj.value("X", 0.0f);
-        radarObj.Y = obj.value("Y", 0.0f);
-        radarObj.Z = obj.value("Z", 0.0f);
-        radarObj.Xdir = obj.value("Xdir", 0.0f);
-        radarObj.Ydir = obj.value("Ydir", 0.0f);
-        radarObj.Zdir = obj.value("Zdir", 0.0f);
-        radarObj.Range = obj.value("Range", 0.0f);
-        radarObj.RangeRate = obj.value("RangeRate", 0.0f);
-        radarObj.Pwr = obj.value("Pwr", 0.0f);
-        radarObj.Az = obj.value("Az", 0.0f);
-        radarObj.El = obj.value("El", 0.0f);
-        radarObj.ID = obj.value("ID", "N/A"); // Assume ID is usually a string
-        radarObj.Xsize = obj.value("Xsize", 0.0f);
-        radarObj.Ysize = obj.value("Ysize", 0.0f);
-        radarObj.Zsize = obj.value("Zsize", 0.0f);
-        radarObj.Conf = obj.value("Conf", 0.0f);
+            // Use .dump() for timestamp to handle numbers or strings
+            radarObj.timestamp = obj.value("timestamp", json(nullptr)).dump();
 
-        radarObjects.push_back(radarObj);
+            radarObj.sensor = obj.value("sensor", "N/A");
+            radarObj.src = obj.value("src", "N/A");
+            radarObj.X = obj.value("X", 0.0f);
+            radarObj.Y = obj.value("Y", 0.0f);
+            radarObj.Z = obj.value("Z", 0.0f);
+            radarObj.Xdir = obj.value("Xdir", 0.0f);
+            radarObj.Ydir = obj.value("Ydir", 0.0f);
+            radarObj.Zdir = obj.value("Zdir", 0.0f);
+            radarObj.Range = obj.value("Range", 0.0f);
+            radarObj.RangeRate = obj.value("RangeRate", 0.0f);
+            radarObj.Pwr = obj.value("Pwr", 0.0f);
+            radarObj.Az = obj.value("Az", 0.0f);
+            radarObj.El = obj.value("El", 0.0f);
+            // Handle potential non-string ID safely
+            if (obj.contains("ID") && obj["ID"].is_string()) {
+                 radarObj.ID = obj.value("ID", "N/A");
+            } else if (obj.contains("ID")) {
+                 // If ID exists but isn't a string, dump it to string representation
+                 radarObj.ID = obj["ID"].dump();
+                 // std::cerr << "Warning: Radar object ID is not a string: " << radarObj.ID << std::endl;
+            } else {
+                 radarObj.ID = "N/A";
+            }
+            radarObj.Xsize = obj.value("Xsize", 0.0f);
+            radarObj.Ysize = obj.value("Ysize", 0.0f);
+            radarObj.Zsize = obj.value("Zsize", 0.0f);
+            radarObj.Conf = obj.value("Conf", 0.0f);
+
+            radarObjects.push_back(radarObj);
+        }
+    } catch (const json::parse_error& e) {
+        // This catch remains in processingLoopFunction, but added one here for immediate feedback
+        std::cerr << "JSON Parsing Error in parseRadarData: " << e.what() << " at offset " << e.byte << std::endl;
+        std::cerr << "Problematic raw JSON data: [" << jsonData << "]" << std::endl;
+        // Return empty vector on parse error to prevent further issues
+        return {};
+    } catch (const json::type_error& e) {
+        // Catch potential type errors during value access (though .value() helps)
+        std::cerr << "JSON Type Error in parseRadarData: " << e.what() << std::endl;
+        std::cerr << "Problematic raw JSON data: [" << jsonData << "]" << std::endl;
+        return {};
     }
+
 
     // Note: Type errors (e.g., trying to read a string as a number) within the loop
     // might still throw json::type_error, which will be caught by the caller.
@@ -317,24 +414,27 @@ void stopPythonBridge(const std::string& scriptName) {
     std::cout << "Stopping Python bridge (" << scriptName << ")...\n";
     // Use default pkill (sends SIGTERM)
     int result = std::system(("pkill -f " + scriptName).c_str());
-    if (result != 0) {
-        // pkill returns non-zero if the process wasn't found (already stopped) or on error.
-        // std::cerr << "pkill command may have failed or process not found for " << scriptName << ". Result: " << result << std::endl;
-    }
-    // Keep a small delay to allow the OS time to potentially process the signal
-    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Wait 0.5 seconds
+    // No error check needed - it's okay if the process wasn't found
+    std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait 1 second for OS
     std::cout << "Sent SIGTERM and waited briefly for " << scriptName << ".\n";
 }
 
 // Function to connect to the python bridge via TCP
 bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& socket) {
     tcp::resolver resolver(io_context);
-    int retries = 5;
+    int retries = 5; // Number of connection attempts
     while (retries-- > 0) {
         try {
+            // Ensure socket is closed before attempting a new connection in the loop
+            if(socket.is_open()) {
+                 boost::system::error_code ignored_ec;
+                 socket.shutdown(tcp::socket::shutdown_both, ignored_ec);
+                 socket.close();
+            }
+
             auto endpoints = resolver.resolve("127.0.0.1", "5000");
             boost::system::error_code ec;
-            boost::asio::connect(socket, endpoints, ec);
+            boost::asio::connect(socket, endpoints, ec); // Attempt connection
             if (!ec) {
                  std::cout << "Connected to Python bridge.\n";
                  return true; // Success
@@ -342,36 +442,34 @@ bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& soc
                  std::cerr << "Connection attempt failed: " << ec.message() << "\n";
             }
         } catch (const std::exception& e) {
-            std::cerr << "Error during connection attempt: " << e.what() << "\n";
+            std::cerr << "Exception during connection attempt: " << e.what() << "\n";
         }
-        if(retries > 0) {
+
+        // Wait before retrying, but check stop flag
+        if(retries > 0 && !stopProcessingFlag.load()) {
              std::cout << "Retrying connection in 2 seconds... (" << retries << " attempts left)\n";
              std::this_thread::sleep_for(std::chrono::seconds(2));
+        } else if (stopProcessingFlag.load()) {
+             std::cout << "Stop requested during connection retry.\n";
+             break; // Exit retry loop if stop requested
         }
     }
+     // If loop finishes without success
      std::cerr << "Failed to connect to Python bridge after multiple attempts.\n";
      return false; // Failure
 }
 
-// Callbacks for obtaining/releasing control
-// Note: These might need adjustment if they were previously tied to FlightController's specific authority methods
-// But the ErrorCode types are likely compatible.
+// Callbacks for obtaining/releasing control (Placeholders - not used in current logic)
 void ObtainJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) {
-    if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ObtainJoystickCtrlAuthoritySuccess) { // This specific error code might need checking against base Control authority success codes if different
-        DSTATUS("ObtainJoystickCtrlAuthoritySuccess (or equivalent Control Authority)");
-    } else {
-        // It might be better to use vehicle->control->obtainCtrlAuthority which returns ACK::ErrorCode
-        // Check dji_ack.hpp for success codes like ACK::SUCCESS or specific authority codes.
-        DERROR("Failed to obtain Control Authority. ErrorCode: %d", errorCode);
-    }
+    if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ObtainJoystickCtrlAuthoritySuccess) {
+        DSTATUS("ObtainJoystickCtrlAuthoritySuccess (Callback - Currently Unused)");
+    } else { DERROR("Failed to obtain Control Authority (Callback - Currently Unused). ErrorCode: %d", errorCode); }
 }
 
 void ReleaseJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) {
-     if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ReleaseJoystickCtrlAuthoritySuccess) { // Similar check needed here
-        DSTATUS("ReleaseJoystickCtrlAuthoritySuccess (or equivalent Control Authority)");
-    } else {
-         DERROR("Failed to release Control Authority. ErrorCode: %d", errorCode);
-    }
+     if (errorCode == ErrorCode::FlightControllerErr::SetControlParam::ReleaseJoystickCtrlAuthoritySuccess) {
+        DSTATUS("ReleaseJoystickCtrlAuthoritySuccess (Callback - Currently Unused)");
+    } else { DERROR("Failed to release Control Authority (Callback - Currently Unused). ErrorCode: %d", errorCode); }
 }
 
 
@@ -380,113 +478,207 @@ enum class ProcessingMode {
     WALL_FOLLOW,             // Process wall data and potentially move drone
     PROCESS_FULL,            // Process and display full radar data
     PROCESS_MINIMAL,         // Process and display minimal radar data
-    PROCESS_BEACON_WALL_ONLY // Process beacon/wall data, no movement
+    // PROCESS_BEACON_WALL_ONLY is handled by calling WALL_FOLLOW with enableControl=false
 };
 
 
-// ***** REVISED processingLoopFunction with socket.read_some *****
-// Parameter changed from FlightSample* to Vehicle*
+// ***** REVISED processingLoopFunction with CORRECT Reconnection Logic & State Reset *****
 void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle, bool enableControlCmd, ProcessingMode mode) {
     std::cout << "Processing thread started. Bridge: " << bridgeScriptName << ", Control Enabled: " << std::boolalpha << enableControlCmd << std::endl;
 
-    runPythonBridge(bridgeScriptName); // Start the specific bridge script
+    int total_reconnect_attempts = 0;
+    const int MAX_RECONNECT_ATTEMPTS = 3; // Limit overall attempts to restart the bridge/connection
 
-    boost::asio::io_context io_context;
-    tcp::socket socket(io_context);
+    // Outer loop manages the overall connection lifecycle (including reconnects)
+    while (!stopProcessingFlag.load()) { // Check stop flag at the start of each connection attempt cycle
 
-    if (!connectToPythonBridge(io_context, socket)) {
-        std::cerr << "Processing thread: Failed to connect to Python bridge. Stopping bridge and exiting thread.\n";
-        stopPythonBridge(bridgeScriptName);
-        std::cout << "\n>>> Press Enter to return to the main menu... <<<\n"; // Prompt user
-        return;
-    }
-
-    std::cout << "Processing thread: Reading data stream...\n";
-
-    std::string received_data_buffer; // Buffer to hold potentially incomplete data across reads
-    std::array<char, 4096> read_buffer; // Temporary buffer for each read_some call
-
-    while (!stopProcessingFlag.load()) {
-        boost::system::error_code error;
-        // Read whatever data is available (up to buffer size)
-        size_t len = socket.read_some(boost::asio::buffer(read_buffer), error);
-
-        if (error == boost::asio::error::eof) {
-            std::cerr << "Processing thread: Connection closed by Python bridge.\n";
-            break; // Connection closed cleanly
-        } else if (error) {
-            std::cerr << "Processing thread: Error reading from socket: " << error.message() << "\n";
-            break; // Other error
+        // --- Connection Phase ---
+        if (total_reconnect_attempts > 0) { // Log if this is a reconnect attempt
+             std::cout << "--- Reconnect Attempt " << total_reconnect_attempts << " ---" << std::endl;
         }
 
-        if (len > 0) {
-            // Append newly read data to our persistent buffer
-            received_data_buffer.append(read_buffer.data(), len);
+        runPythonBridge(bridgeScriptName); // Start/Restart the bridge script
 
-            // Process all complete lines found in the buffer
-            size_t newline_pos;
-            while ((newline_pos = received_data_buffer.find('\n')) != std::string::npos) {
-                // Extract the complete line (up to, but not including, the newline)
-                std::string jsonData = received_data_buffer.substr(0, newline_pos);
+        boost::asio::io_context io_context;
+        tcp::socket socket(io_context);
 
-                // Remove the processed line (including the newline) from the buffer
-                received_data_buffer.erase(0, newline_pos + 1);
+        if (!connectToPythonBridge(io_context, socket)) {
+            std::cerr << "Processing thread: Connection failed for this attempt.\n";
+            stopPythonBridge(bridgeScriptName); // Ensure bridge is stopped after failed connection attempt
+            total_reconnect_attempts++;
+            if (total_reconnect_attempts >= MAX_RECONNECT_ATTEMPTS) {
+                 std::cerr << "Maximum reconnect attempts (" << MAX_RECONNECT_ATTEMPTS << ") reached. Giving up.\n";
+                 break; // Exit outer loop - giving up on reconnecting
+            }
+            // Check stop flag before waiting
+            if (stopProcessingFlag.load()) {
+                 std::cout << "Stop requested after failed connection attempt.\n";
+                 break; // Exit outer loop
+            }
+            std::cout << "Waiting 5 seconds before next reconnect attempt ("
+                      << total_reconnect_attempts << "/" << MAX_RECONNECT_ATTEMPTS << ")...\n";
+            // Sleep in smaller chunks to check stop flag more frequently
+             for (int i = 0; i < 5; ++i) {
+                 if (stopProcessingFlag.load()) break;
+                 std::this_thread::sleep_for(std::chrono::seconds(1));
+             }
+             if (stopProcessingFlag.load()) {
+                  std::cout << "Stop requested during reconnect wait.\n";
+                  break; // Exit outer loop
+             }
+            continue; // Go to next iteration of outer loop to retry connection
+        }
 
-                if (stopProcessingFlag.load()) break; // Check flag frequently
+        // --- Data Processing Phase (If Connection Successful) ---
+        // Reset total reconnect attempts if connection successful
+        total_reconnect_attempts = 0;
+        std::cout << "Processing thread: Connection successful. Reading data stream...\n";
 
-                if (!jsonData.empty()) {
-                    try {
-                        auto radarObjects = parseRadarData(jsonData);
-                        if (!radarObjects.empty()) {
-                           switch (mode) {
-                                case ProcessingMode::WALL_FOLLOW:
-                                    // Pass the 'vehicle' pointer and enableControlCmd status
-                                    extractBeaconAndWallData(radarObjects, vehicle, enableControlCmd);
-                                    break;
-                                case ProcessingMode::PROCESS_FULL:
-                                    displayRadarObjects(radarObjects);
-                                    break;
-                                case ProcessingMode::PROCESS_MINIMAL:
-                                    displayRadarObjectsMinimal(radarObjects);
-                                    break;
-                                case ProcessingMode::PROCESS_BEACON_WALL_ONLY:
-                                    // Pass nullptr for vehicle, false for enableControlCmd
-                                    extractBeaconAndWallData(radarObjects, nullptr, false);
-                                    break;
-                            }
-                        }
-                    } catch (const json::parse_error& e) {
-                         std::cerr << "DEBUG: Raw data causing error: [" << jsonData << "]" << std::endl;
-                         std::cerr << "JSON Parsing Error: " << e.what() << " at offset " << e.byte << std::endl;
-                    } catch (const std::exception& e) {
-                         std::cerr << "Error processing received data: " << e.what() << std::endl;
-                         std::cerr << "Problematic data was: [" << jsonData << "]" << std::endl;
-                    }
+        std::string received_data_buffer;
+        std::array<char, 4096> read_buffer;
+        bool connection_lost_in_inner_loop = false; // Flag to indicate why inner loop exited
+
+        // Inner loop reads data until error or stop signal
+        while (!stopProcessingFlag.load()) {
+            boost::system::error_code error;
+            size_t len = socket.read_some(boost::asio::buffer(read_buffer), error);
+
+            if (error) { // Handle any socket read error
+                if (error == boost::asio::error::eof) {
+                    std::cerr << "Processing thread: Connection closed by Python bridge (EOF).\n";
                 } else {
-                    // std::cout << "Received empty line." << std::endl; // Debugging
+                    std::cerr << "Processing thread: Error reading from socket: " << error.message() << "\n";
                 }
-            } // End while processing lines in buffer
-            if (stopProcessingFlag.load()) break; // Check flag after processing buffer contents
-        }
-        // Optional slight delay if CPU usage is high, but read_some is blocking so maybe not needed
-        // std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    } // End while(!stopProcessingFlag.load())
 
-    std::cout << "Processing thread: Loop finished or stopped.\n";
-    if (socket.is_open()) {
-        boost::system::error_code ignored_ec;
-        socket.shutdown(tcp::socket::shutdown_both, ignored_ec);
-        socket.close();
-    }
+                // Clean up the socket resource immediately
+                if (socket.is_open()) {
+                     boost::system::error_code ignored_ec;
+                     socket.shutdown(tcp::socket::shutdown_both, ignored_ec);
+                     socket.close();
+                }
+                connection_lost_in_inner_loop = true; // Mark that connection was lost
+                break; // Break inner loop to trigger reconnection logic below
+            }
+
+            // Process data if read was successful
+            if (len > 0) {
+                received_data_buffer.append(read_buffer.data(), len);
+                size_t newline_pos;
+                // Process all complete lines found in the buffer
+                while ((newline_pos = received_data_buffer.find('\n')) != std::string::npos) {
+                    std::string jsonData = received_data_buffer.substr(0, newline_pos);
+                    received_data_buffer.erase(0, newline_pos + 1);
+
+                    // Check stop flag frequently within data processing
+                    if (stopProcessingFlag.load()) break;
+
+                    if (!jsonData.empty()) {
+                        try {
+                            auto radarObjects = parseRadarData(jsonData);
+                            if (!radarObjects.empty()) {
+                                // Process data based on the mode set when the thread was launched
+                                switch (mode) {
+                                    case ProcessingMode::WALL_FOLLOW:
+                                        extractBeaconAndWallData(radarObjects, vehicle, enableControlCmd);
+                                        break;
+                                    case ProcessingMode::PROCESS_FULL:
+                                        displayRadarObjects(radarObjects);
+                                        break;
+                                    case ProcessingMode::PROCESS_MINIMAL:
+                                        displayRadarObjectsMinimal(radarObjects);
+                                        break;
+                                }
+                            }
+                        } catch (const std::exception& e) {
+                             // Catch potential errors during parsing or data extraction
+                             std::cerr << "Error processing data: " << e.what() << "\nSnippet: [" << jsonData.substr(0, 100) << "...]\n";
+                        }
+                    }
+                } // End while processing lines in buffer
+
+                // Check stop flag again after processing buffer contents
+                if (stopProcessingFlag.load()) break;
+
+            } else {
+                 // No data read, but no error? Could happen. Brief pause.
+                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        } // End inner data reading loop
+
+
+        // --- Post-Inner Loop Handling ---
+        if (stopProcessingFlag.load()) {
+             std::cout << "Stop requested, exiting processing loop.\n";
+             // Ensure socket is closed if inner loop exited due to stop flag
+             if (socket.is_open()) {
+                 boost::system::error_code ignored_ec;
+                 socket.shutdown(tcp::socket::shutdown_both, ignored_ec);
+                 socket.close();
+             }
+             break; // Exit outer loop if stopped manually
+        }
+
+        // If we are here, the inner loop exited because connection_lost_in_inner_loop is true
+        if (connection_lost_in_inner_loop) {
+             std::cout << "Connection lost detected. Handling reconnect...\n";
+             stopPythonBridge(bridgeScriptName); // Stop the potentially dead bridge
+
+             // ***** ADDED: Reset persistent processing state before reconnect attempt *****
+             std::cout << "Resetting processing state variables (currentSecond, etc.)...\n";
+             currentSecond = ""; // Reset the last known second
+             lowestRange = std::numeric_limits<float>::max(); // Reset wall tracking
+             hasAnonData = false;                             // Reset wall tracking
+             targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN(); // Reset beacon tracking
+             foundTargetBeacon = false;                                     // Reset beacon tracking
+             // ***************************************************************************
+
+
+             // Increment attempt counter before checking limit
+             total_reconnect_attempts++;
+             if (total_reconnect_attempts >= MAX_RECONNECT_ATTEMPTS) {
+                  std::cerr << "Maximum reconnect attempts (" << MAX_RECONNECT_ATTEMPTS << ") reached. Giving up.\n";
+                  break; // Exit outer loop
+             }
+
+             // Wait before the next attempt, checking for stop signal during wait
+             std::cout << "Waiting 5 seconds before reconnect attempt "
+                       << total_reconnect_attempts << "/" << MAX_RECONNECT_ATTEMPTS << "...\n";
+             // Sleep in smaller chunks to check stop flag more frequently
+             for (int i = 0; i < 5; ++i) {
+                 if (stopProcessingFlag.load()) break;
+                 std::this_thread::sleep_for(std::chrono::seconds(1));
+             }
+
+             if (stopProcessingFlag.load()) {
+                  std::cout << "Stop requested during reconnect wait.\n";
+                  break; // Exit outer loop
+             }
+
+             // If not stopped and attempts remain, continue to the next iteration of the outer loop
+             std::cout << "Proceeding to next reconnect attempt...\n";
+             // The 'continue' is implicit as the outer loop's condition will be checked again
+
+        } else {
+             // Should not happen if stop flag check is correct, but as a safeguard:
+             std::cout << "Inner loop exited unexpectedly without stop flag or connection loss.\n";
+             break; // Exit outer loop
+        }
+
+    } // End outer loop (reconnection attempts or stop signal)
+
+    std::cout << "Processing thread: Exiting outer loop.\n";
+
+    // Final cleanup attempt for the bridge script, just in case
     stopPythonBridge(bridgeScriptName);
     std::cout << "Processing thread finished.\n";
+    // Only print the menu prompt when the thread *actually* finishes and exits.
     std::cout << "\n>>> Press Enter to return to the main menu... <<<\n";
 }
 // ***** END REVISED processingLoopFunction *****
 
 
 int main(int argc, char** argv) {
-    // Load preferences for target distance
+    // Load preferences for target distance and lateral control
     loadPreferences();
 
     // --- Initial Mode Selection ---
@@ -528,29 +720,21 @@ int main(int argc, char** argv) {
 
     if (enableFlightControl) {
         std::cout << "Initializing DJI OSDK...\n";
-        // ***** Add OSDK Logging Configuration Here if possible *****
-        // Example (Hypothetical - FIND THE REAL API CALL):
-        // DJI::OSDK::Log::instance().setOutputStream(&std::cerr);
-        // **********************************************************
-
         linuxEnvironment = new LinuxSetup(argc, argv);
         vehicle = linuxEnvironment->getVehicle();
-        // Check if vehicle pointer and the base 'control' pointer are valid
         if (vehicle == nullptr || vehicle->control == nullptr) {
             std::cerr << "ERROR: Vehicle not initialized or control interface unavailable. Flight control will be disabled.\n";
              if (linuxEnvironment) delete linuxEnvironment; linuxEnvironment = nullptr;
-             vehicle = nullptr; // Ensure vehicle is null if init failed
-             enableFlightControl = false; // Force disable flight control
+             vehicle = nullptr;
+             enableFlightControl = false;
              std::cout << "Switching to Test Mode functionality due to OSDK connection issue.\n";
-             defaultPythonBridgeScript = "python_bridge_LOCAL.py"; // Use local bridge if OSDK fails
+             defaultPythonBridgeScript = "python_bridge_LOCAL.py";
         } else {
             std::cout << "Attempting to obtain Control Authority...\n";
-            // Use the base control->obtainCtrlAuthority
             ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
             if (ACK::getError(ctrlAuthAck)) {
                  ACK::getErrorCodeMessage(ctrlAuthAck, __func__);
                  std::cerr << "Failed to obtain control authority. Disabling flight control." << std::endl;
-                 // Cleanup and disable control
                  if (linuxEnvironment) delete linuxEnvironment; linuxEnvironment = nullptr;
                  vehicle = nullptr;
                  enableFlightControl = false;
@@ -558,14 +742,18 @@ int main(int argc, char** argv) {
                  defaultPythonBridgeScript = "python_bridge_LOCAL.py";
             } else {
                  std::cout << "Obtained Control Authority.\n";
-                 // FlightSample might still be useful for monitored takeoff/landing wrappers
-                 // It internally uses vehicle->control->action(...)
                  flightSample = new FlightSample(vehicle);
                  std::cout << "OSDK Initialized and Flight Sample created.\n";
             }
         }
     } else {
          std::cout << "Running without Flight Control (Test Mode selected or OSDK init failed).\n";
+    }
+
+    if (enableFlightControl) {
+        std::cout << "INFO: Flight control is ENABLED proceeding to main menu.\n";
+    } else {
+        std::cout << "INFO: Flight control is DISABLED proceeding to main menu.\n";
     }
 
 
@@ -576,13 +764,13 @@ int main(int argc, char** argv) {
         if (enableFlightControl) {
              std::cout << "| [t] Monitored Takeoff                     |\n";
              std::cout << "| [l] Monitored Landing                     |\n";
-             std::cout << "| [w] Start Wall Following (Default Bridge) |\n";
-             std::cout << "| [h] Start Wall Following (TEST Bridge)    |\n";
+             std::cout << "| [w] Start Wall+Beacon Following (Default) |\n";
+             std::cout << "| [h] Start Wall+Beacon Following (TEST)    |\n";
         } else {
              std::cout << "| [t] Takeoff (DISABLED)                    |\n";
              std::cout << "| [l] Landing (DISABLED)                    |\n";
-             std::cout << "| [w] Wall Following (DISABLED - No Control)|\n";
-             std::cout << "| [h] Wall Following (DISABLED - No Control)|\n";
+             std::cout << "| [w] Wall/Beacon Following (No Control)    |\n";
+             std::cout << "| [h] Wall/Beacon Following (No Control)    |\n";
         }
         std::cout << "| [e] Process Full Radar (No Control)       |\n";
         std::cout << "| [f] Process Minimal Radar (No Control)    |\n";
@@ -592,33 +780,30 @@ int main(int argc, char** argv) {
         std::cout << "---------------------------------------------\n";
         std::cout << "Enter command: ";
 
-        // Use std::getline for input
         std::string lineInput;
-        char inputChar = 0; // Default to null char / invalid
+        char inputChar = 0;
 
         if (std::getline(std::cin, lineInput)) {
              if (!lineInput.empty()) {
-                 inputChar = lineInput[0]; // Use the first character of the line
+                 inputChar = lineInput[0];
              } else {
-                 // User pressed Enter without typing anything - treat as needing a refresh / invalid command
-                 inputChar = 0; // Explicitly set to invalid/null
-                 // std::cout << "Enter pressed. Displaying menu again.\n"; // Optional feedback
+                 inputChar = 0; // User pressed Enter
              }
         } else {
-             // Error reading line (e.g., Ctrl+D / EOF)
-             inputChar = 'q'; // Treat as quit
+             inputChar = 'q'; // Treat EOF (Ctrl+D) as quit
              std::cout << "\nInput stream closed. Exiting.\n";
         }
 
 
         // --- Stop existing thread if a new processing task is started or quitting ---
-         if (strchr("wehgs", inputChar) != nullptr || inputChar == 'q') { // Check if input requires stopping previous task
+         // This logic ensures the previous thread is stopped and joined before starting a new one.
+         if (strchr("wehgs", inputChar) != nullptr || inputChar == 'q') {
              if (processingThread.joinable()) {
-                 std::cout << "Stopping previous processing thread...\n";
-                 stopProcessingFlag.store(true); // Signal thread to stop
-                 processingThread.join();       // Wait for thread to finish
-                 std::cout << "Previous thread stopped.\n";
-                 stopProcessingFlag.store(false); // Reset flag for next use
+                 std::cout << "Signalling previous processing thread to stop...\n"; // Changed log
+                 stopProcessingFlag.store(true); // Signal the thread to stop its loops
+                 processingThread.join();        // Wait for the thread function to complete its cleanup and exit
+                 std::cout << "Previous processing thread has finished.\n"; // Changed log
+                 stopProcessingFlag.store(false); // Reset flag for the potential next thread
              }
          }
 
@@ -626,105 +811,104 @@ int main(int argc, char** argv) {
         // --- Process Command ---
         switch (inputChar) {
             case 't': // Takeoff
-                // Use flightSample for takeoff/landing as it provides monitoring
                 if (enableFlightControl && flightSample) {
+                    // Consider adding obtain/release authority around specific actions if needed
                     flightSample->monitoredTakeoff();
                 } else {
                      std::cout << "Flight control not enabled or available.\n";
                 }
                 break;
             case 'l': // Landing
-                 // Use flightSample for takeoff/landing as it provides monitoring
                  if (enableFlightControl && flightSample) {
+                    // Consider adding obtain/release authority around specific actions if needed
                     flightSample->monitoredLanding();
                 } else {
                      std::cout << "Flight control not enabled or available.\n";
                 }
-                break;
+                 break;
 
              case 'w': // Start Wall Following (Default Bridge, Control if Enabled)
-                 std::cout << "Starting Wall Following using default bridge: " << defaultPythonBridgeScript << "\n";
-                 stopProcessingFlag.store(false); // Ensure flag is false before starting
-                 // Pass 'vehicle' pointer if control enabled, otherwise nullptr
-                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, (enableFlightControl ? vehicle : nullptr), enableFlightControl, ProcessingMode::WALL_FOLLOW);
+                 std::cout << "Starting Wall+Beacon Following using default bridge: " << defaultPythonBridgeScript << "\n";
+                 stopProcessingFlag.store(false); // Ensure flag is reset before starting thread
+                 // Launch the thread with its own reconnection logic
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW);
                  break;
 
              case 'h': // Start Wall Following (TEST Bridge, Control if Enabled)
                  if (!enableFlightControl) {
                      std::cout << "Error: Flight control must be enabled (select Live Mode 'a' at start) to use this option effectively.\n";
                  } else {
-                     std::cout << "Starting Wall Following using TEST bridge: python_bridge_LOCAL.py\n";
-                     stopProcessingFlag.store(false);
-                     // Pass 'vehicle' pointer as control is enabled here
-                     processingThread = std::thread(processingLoopFunction, "python_bridge_LOCAL.py", vehicle, true, ProcessingMode::WALL_FOLLOW);
+                     std::cout << "Starting Wall+Beacon Following using TEST bridge: python_bridge_LOCAL.py\n";
+                     stopProcessingFlag.store(false); // Ensure flag is reset
+                     // Launch the thread with its own reconnection logic
+                     processingThread = std::thread(processingLoopFunction, "python_bridge_LOCAL.py", vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW);
                  }
                  break;
 
              case 'e': // Process Full Radar Data (Default Bridge, No Control)
                  std::cout << "Starting Full Radar Data processing using default bridge: " << defaultPythonBridgeScript << "\n";
                  stopProcessingFlag.store(false);
-                 // Pass nullptr for vehicle, false for control CMDs
                  processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, ProcessingMode::PROCESS_FULL);
                  break;
 
              case 'f': // Process Minimal Radar Data (Default Bridge, No Control)
                   std::cout << "Starting Minimal Radar Data processing using default bridge: " << defaultPythonBridgeScript << "\n";
                  stopProcessingFlag.store(false);
-                 // Pass nullptr for vehicle, false for control CMDs
                  processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, ProcessingMode::PROCESS_MINIMAL);
                  break;
 
              case 'g': // Process Beacon/Wall Only (Default Bridge, No Control)
-                  std::cout << "Starting Beacon/Wall Data processing using default bridge: " << defaultPythonBridgeScript << "\n";
+                  std::cout << "Starting Beacon/Wall Data processing (display only) using default bridge: " << defaultPythonBridgeScript << "\n";
                  stopProcessingFlag.store(false);
-                  // Pass nullptr for vehicle, false for control CMDs
-                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, ProcessingMode::PROCESS_BEACON_WALL_ONLY);
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, ProcessingMode::WALL_FOLLOW);
                  break;
 
             case 's': // STOP Current Processing Thread
-                // The check and join logic is handled at the beginning of the loop now.
-                // This case is primarily to explicitly stop without starting something new.
-                 std::cout << "Stop command received. Any active processing thread has been signalled to stop.\n";
-                 // If the user just pressed 's', the join happened above. We just loop back to the menu.
-                 // Add prompt here too, in case the user expected immediate feedback after 's'
-                 std::cout << "\n>>> Press Enter to return to the main menu... <<<\n";
+                 // The stop/join logic is handled at the start of the loop if a new command is issued.
+                 // This 's' case just signals the thread without waiting here.
+                 if (processingThread.joinable()) {
+                     std::cout << "Stop command received. Signalling active thread to stop...\n";
+                     stopProcessingFlag.store(true); // Signal the thread
+                 } else {
+                     std::cout << "No processing thread is currently active.\n";
+                 }
+                 // No need for the "Press Enter" prompt here, main loop will show menu again.
                 break;
 
             case 'q': { // Quit
                 std::cout << "Exiting...\n";
-                 // Stop processing thread handled above
+                // Stop thread handled above (ensures thread is joined before proceeding)
 
-                if (enableFlightControl && vehicle && vehicle->control) { // Check vehicle and control
+                // Release authority and cleanup OSDK resources
+                if (enableFlightControl && vehicle && vehicle->control) {
+                    std::cout << "Sending Zero Velocity command before releasing control..." << std::endl;
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE;
+                    DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
+                    vehicle->control->flightCtrl(stopData);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Short delay
+
                     std::cout << "Releasing Control Authority...\n";
-                    // Use base control release authority
                     ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
                      if (ACK::getError(releaseAck)) {
                          ACK::getErrorCodeMessage(releaseAck, __func__);
                          std::cerr << "Warning: Failed to release control authority." << std::endl;
                      } else {
-                         std::cout << "Control Authority Released." << std::endl;
+                         std::cout << "Control Authority Released.\n";
                      }
-
-                    // Consider landing the drone if it's flying
-                     std::cout << "Ensure drone is landed before quitting.\n";
-                     // Use flightSample for monitored landing if available
-                     // if (flightSample) flightSample->monitoredLanding(); // Optional safety landing
-
-                    // Delete flightSample if it was created
-                    if (flightSample) {
-                        delete flightSample; flightSample = nullptr;
-                    }
                 }
+                 // Cleanup OSDK environment objects
                  if (linuxEnvironment) {
-                    delete linuxEnvironment; linuxEnvironment = nullptr; // Clean up LinuxSetup
+                    delete linuxEnvironment; linuxEnvironment = nullptr;
                  }
-                 // vehicle pointer is managed by linuxEnvironment, no need to delete separately
+                 if (flightSample) {
+                     delete flightSample; flightSample = nullptr;
+                 }
 
                 keepRunning = false; // Exit main loop
                 break;
             }
 
-            case 0: // User pressed Enter without any other input
+            case 0: // User pressed Enter
                  // Do nothing, loop will redisplay menu
                  break;
 
@@ -734,11 +918,19 @@ int main(int argc, char** argv) {
         } // End switch
     } // End while(keepRunning)
 
-    // Final cleanup check for the thread in case the loop exited unexpectedly
+    // Final check to join thread if loop exited unexpectedly (e.g., error)
      if (processingThread.joinable()) {
+         std::cerr << "Warning: Main loop exited unexpectedly, ensuring processing thread is stopped.\n";
          stopProcessingFlag.store(true);
          processingThread.join();
      }
+     // Final cleanup of OSDK resources if not done via 'q'
+      if (linuxEnvironment) {
+         delete linuxEnvironment; linuxEnvironment = nullptr;
+      }
+      if (flightSample) {
+          delete flightSample; flightSample = nullptr;
+      }
 
     std::cout << "Program terminated.\n";
     return 0;
