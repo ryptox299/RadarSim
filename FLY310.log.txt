@@ -1,0 +1,485 @@
+-10.666 :    1772 [L-FDI]NS(0) VO(0): fault on, disconnect
+-10.659 :    1772 [L-NS][AHRS] connect mag   :0
+-10.659 :    1772 [L-NS][AHRS] connect us   :0
+-10.419 :    1784 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-10.416 :    1784 [L-FDI]NS(0) ULTRASONIC(0): fault on, disconnect
+-10.351 :    1787 [L-FMU][DB]FATAL ERROR fail to fill data 420 for invalid src
+-10.138 :    1797 [L-NS][AHRS] connect vo   :0
+-10.098 :    1799 [L-BATTERY]bat_check_result: 0/0/0/0
+-10.034 :    1802 [L-NS][AHRS] connect gps   :0
+-9.641 :    1821 [L-FMU/LED]type:0, normal flash action:
+-9.641 :    1821 [L-FMU/LED]c0:0,15;c1:0,3;c2:0,13;c3:2,3;c4:0,10;c5:2,3;c6:0,10;c7:0,3
+-9.377 :    1834 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-8.335 :    1884 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-8.226 :    1889 [L-FMU][DB]FATAL ERROR fail to fill data 34 for invalid src
+-7.293 :    1934 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-7.163 :    1940 [L-FMU][DB]FATAL ERROR fail to fill data 39 for invalid src
+-6.252 :    1984 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-6.101 :    1991 [L-FMU][DB]FATAL ERROR fail to fill data 43 for invalid src
+-5.891 :    2001 [L-FMU/LED]type:0, normal flash action:
+-5.891 :    2001 [L-FMU/LED]c0:0,15;c1:0,3;c2:0,13;c3:2,3;c4:0,10;c5:0,3;c6:0,10;c7:0,3
+-5.645 :    2013 [L-HOME]First. lati:22.5428130 longti:113.9589020 alti:120.10
+-5.210 :    2034 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-5.039 :    2042 [L-FMU][DB]FATAL ERROR fail to fill data 44 for invalid src
+-4.890 :    2049 [L-BATTERY]bat_check_result: 0/0/0/0
+-4.168 :    2084 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-4.016 :    2091 [L-FMU/LED]action changed. set home(0)
+-3.976 :    2093 [L-FMU][DB]FATAL ERROR fail to fill data 78 for invalid src
+-2.912 :    2144 [L-FMU][DB]FATAL ERROR fail to fill data 79 for invalid src
+-2.703 :    2154 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+-2.085 :    2184 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-1.851 :    2195 [L-FMU][DB]FATAL ERROR fail to fill data 89 for invalid src
+-1.828 :    2196 [L-FMU/LED]action changed. Normal Flash(0)
+-1.828 :    2196 [L-FMU/LED]type:0, normal flash action:
+-1.828 :    2196 [L-FMU/LED]c0:0,15;c1:0,3;c2:0,13;c3:2,3;c4:0,10;c5:0,3;c6:0,10;c7:0,3
+-1.043 :    2234 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+-.787 :    2246 [L-FMU][DB]FATAL ERROR fail to fill data 140 for invalid src
+-.226 :    2273 [L-RC]rc cmd:STD_ASSI_TAKEOFF
+-.205 :    2274 [L-FMU/MOTOR]Start. reason:MR_REQ_RC_NORMAL
+-.205 :    2274 [L-PWM]set actuator mode:CTRL
+-.204 :    2274 [L-FMU/FSM]state changed. cur: on ground
+-.203 :    2274 [L-FDI]tilt when motor on = 0.000000, static flag = 0
+-.203 :    2274 [L-FLYMODE]MR_REQ_R_RC_ASST_TAKEOFF
+-.201 :    2274 [L-N_MIS]Init plan 3 from requester 2 for reason 9. Pre plan 5
+-.201 :    2274 [L-TAKEOFF]enter assit takeoff plan
+-.201 :    2274 [L-N_MIS]Exit mis 3. New mis 4
+-.201 :    2274 [L-N_MIS]send cur mission exit data, mis:0, exit_reason:0.
+-.201 :    2274 [L-N_MIS]Switch new mis 4 req 2 from mis 3 req 2
+-.184 :    2275 [L-IOC]Set CL.   0.0 Degree
+-.184 :    2275 [L-TAKEOFF]alti: 100.099998 tors: 0.000000
+-.182 :    2275 [L-FMU/LED]type:1, normal flash action:
+-.182 :    2275 [L-FMU/LED]c0:12,2;c1:0,0;c2:0,0;c3:0,0;c4:0,0;c5:0,0;c6:0,0;c7:0,0
+-.182 :    2275 [L-FMU/LED]type:2, normal flash action:
+-.182 :    2275 [L-FMU/LED]c0:12,2;c1:0,0;c2:0,0;c3:0,0;c4:0,0;c5:0,0;c6:0,0;c7:0,0
+-.002 :    2284 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+.274 :    2297 [L-FMU][DB]FATAL ERROR fail to fill data 208 for invalid src
+.319 :    2299 [L-BATTERY]bat_check_result: 0/0/0/0
+1.040 :    2334 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+1.337 :    2348 [L-FMU][DB]FATAL ERROR fail to fill data 228 for invalid src
+2.081 :    2384 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+2.399 :    2399 [L-FMU][DB]FATAL ERROR fail to fill data 229 for invalid src
+2.925 :    2424 [L-NS][AHRS] fan speed compensated: 0.0 meters
+2.929 :    2424 [L-N_MIS]Exit mis 4. New mis 5
+2.929 :    2424 [L-N_MIS]send cur mission exit data, mis:0, exit_reason:0.
+2.929 :    2424 [L-N_MIS]Switch new mis 5 req 2 from mis 4 req 2
+3.125 :    2434 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+3.464 :    2450 [L-FMU][DB]FATAL ERROR fail to fill data 230 for invalid src
+3.973 :    2474 [L-FMU/FSM]state changed. cur: in air
+3.981 :    2475 [L-N_MIS]req abort all for assit takeoff finished
+3.983 :    2475 [L-HOME]Update. lati:22.5428130 longti:113.9589020 alti:120.10
+3.986 :    2475 [L-TAKEOFF]exit assit takeoff plan
+3.986 :    2475 [L-N_MIS]send cur mission exit data, mis:0, exit_reason:0.
+3.986 :    2475 [L-N_MIS]Switch new mis 3 req 2 from mis 25 req 16
+3.987 :    2475 [L-FLYMODE]SWITCH2HOVER!
+4.167 :    2484 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+4.526 :    2501 [L-FMU][DB]FATAL ERROR fail to fill data 231 for invalid src
+5.068 :    2527 [L-FMU/MOTOR]safe_near_grd:false
+5.208 :    2534 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+5.531 :    2549 [L-BATTERY]bat_check_result: 0/0/0/0
+5.588 :    2552 [L-FMU][DB]FATAL ERROR fail to fill data 276 for invalid src
+5.677 :    2556 [L-FMU/LED]action changed. set home(0)
+5.761 :    2560 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+5.764 :    2560 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-510/1
+6.250 :    2584 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+6.651 :    2603 [L-FMU][DB]FATAL ERROR fail to fill data 277 for invalid src
+6.886 :    2614 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+6.891 :    2614 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-520/1
+7.097 :    2624 [L-NS][AHRS] reset baro just after takeoff
+7.290 :    2634 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+7.714 :    2654 [L-FMU][DB]FATAL ERROR fail to fill data 278 for invalid src
+7.719 :    2654 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+7.860 :    2661 [L-FMU/LED]action changed. Normal Flash(0)
+7.860 :    2661 [L-FMU/LED]type:0, normal flash action:
+7.860 :    2661 [L-FMU/LED]c0:0,15;c1:0,3;c2:0,13;c3:2,3;c4:0,10;c5:0,3;c6:0,10;c7:0,3
+7.884 :    2662 [L-FMU/VERSION]Mc  ID  :1DADGB70010084
+7.884 :    2662 [L-FMU/VERSION]Bat SN  :0KQAFAN23100TK
+7.885 :    2662 [L-FMU/VERSION]Mc  Ver :v3.4.3.44
+7.885 :    2662 [L-FMU/VERSION]Bat Ver :v255.255.255.255
+7.885 :    2662 [L-FMU/VERSION]svn Ver :f10c963e61d82cf059b9b6355ca78637a950ba60
+7.885 :    2662 [L-FMU/VERSION]Time    :commit:2020-07-01 16:24:24 /build:2020-08-19 14:50:02
+7.885 :    2662 [L-FMU/VERSION]FC - DEBUG FIRMWARE
+8.010 :    2668 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+8.011 :    2668 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-520/1
+8.332 :    2684 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+8.776 :    2705 [L-FMU][DB]FATAL ERROR fail to fill data 279 for invalid src
+9.135 :    2722 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-492/1
+9.139 :    2722 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-520/1
+9.375 :    2734 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+9.839 :    2756 [L-FMU][DB]FATAL ERROR fail to fill data 280 for invalid src
+10.261 :    2776 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+10.265 :    2776 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-510/1
+10.415 :    2784 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+10.740 :    2799 [L-BATTERY]bat_check_result: 0/0/0/0
+10.901 :    2807 [L-FMU][DB]FATAL ERROR fail to fill data 281 for invalid src
+11.385 :    2830 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+11.388 :    2830 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+11.458 :    2834 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+11.962 :    2858 [L-FMU][DB]FATAL ERROR fail to fill data 282 for invalid src
+12.500 :    2884 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+12.511 :    2884 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+12.516 :    2884 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+13.026 :    2909 [L-FMU][DB]FATAL ERROR fail to fill data 283 for invalid src
+13.542 :    2934 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+13.634 :    2938 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+13.636 :    2938 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+14.089 :    2960 [L-FMU][DB]FATAL ERROR fail to fill data 284 for invalid src
+14.396 :    2975 [L-API][USER]get_sdk_version,cmd_id:0 cmd_set:0 seq_num:1 session_id:2 need_ack:1
+14.582 :    2984 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+14.760 :    2992 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-496/1
+14.764 :    2992 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-520/1
+15.151 :    3011 [L-FMU][DB]FATAL ERROR fail to fill data 328 for invalid src
+15.625 :    3034 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+15.688 :    3037 [L-SDK]req 1 real 2 0
+15.688 :    3037 [L-SDK][SDK/USER] dji_sdk_set_key D........K........0.b)......w...Y..
+15.688 :    3037 [L-CFG]PM:[sdk_activation] "authority_level" to 2||
+15.886 :    3046 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+15.891 :    3046 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-510/1
+15.948 :    3049 [L-BATTERY]bat_check_result: 0/0/0/0
+16.214 :    3062 [L-FMU][DB]FATAL ERROR fail to fill data 329 for invalid src
+16.667 :    3084 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+17.011 :    3100 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+17.016 :    3100 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-520/1
+17.070 :    3103 [L-NS][AHRS],qg obv[7]sensor config: dt_tick is 0.000000 <=0!!!
+17.070 :    3103 [L-NS][AHRS],qg obv buffer size[210/270]
+17.071 :    3103 [L-NS][AHRS],pva obv buffer size[231/270]
+17.276 :    3113 [L-FMU][DB]FATAL ERROR fail to fill data 330 for invalid src
+17.708 :    3134 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+18.136 :    3154 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+18.136 :    3154 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-492/1
+18.141 :    3154 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+18.339 :    3164 [L-FMU][DB]FATAL ERROR fail to fill data 331 for invalid src
+18.750 :    3184 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+19.260 :    3208 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-492/1
+19.261 :    3208 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+19.401 :    3215 [L-FMU][DB]FATAL ERROR fail to fill data 332 for invalid src
+19.790 :    3234 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+20.386 :    3262 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+20.389 :    3262 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+20.464 :    3266 [L-FMU][DB]FATAL ERROR fail to fill data 333 for invalid src
+20.832 :    3284 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+21.156 :    3299 [L-BATTERY]bat_check_result: 0/0/0/0
+21.511 :    3316 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-496/1
+21.515 :    3316 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+21.526 :    3317 [L-FMU][DB]FATAL ERROR fail to fill data 334 for invalid src
+21.875 :    3334 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+22.589 :    3368 [L-FMU][DB]FATAL ERROR fail to fill data 391 for invalid src
+22.636 :    3370 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+22.639 :    3370 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+22.915 :    3384 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+23.111 :    3393 [L-N_MIS]Exit mis 3. New mis 14
+23.111 :    3393 [L-N_MIS]send cur mission exit data, mis:0, exit_reason:0.
+23.111 :    3393 [L-N_MIS]Switch new mis 14 req 4 from mis 3 req 2
+23.651 :    3419 [L-FMU][DB]FATAL ERROR fail to fill data 408 for invalid src
+23.761 :    3424 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-492/1
+23.766 :    3424 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-510/1
+23.957 :    3434 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+24.714 :    3470 [L-FMU][DB]FATAL ERROR fail to fill data 409 for invalid src
+24.885 :    3478 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+24.886 :    3478 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+25.000 :    3484 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+25.776 :    3521 [L-FMU][DB]FATAL ERROR fail to fill data 410 for invalid src
+26.011 :    3532 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+26.014 :    3532 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-516/1
+26.040 :    3534 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+26.365 :    3549 [L-BATTERY]bat_check_result: 0/0/0/0
+26.838 :    3572 [L-FMU][DB]FATAL ERROR fail to fill data 411 for invalid src
+27.082 :    3584 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+27.136 :    3586 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+27.141 :    3586 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+27.901 :    3623 [L-FMU][DB]FATAL ERROR fail to fill data 412 for invalid src
+28.125 :    3634 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+28.261 :    3640 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-496/1
+28.265 :    3640 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-520/1
+28.552 :    3654 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+28.964 :    3674 [L-FMU][DB]FATAL ERROR fail to fill data 413 for invalid src
+29.386 :    3694 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+29.391 :    3694 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-516/1
+30.026 :    3725 [L-FMU][DB]FATAL ERROR fail to fill data 414 for invalid src
+30.207 :    3734 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+30.510 :    3748 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+30.511 :    3748 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+31.089 :    3776 [L-FMU][DB]FATAL ERROR fail to fill data 415 for invalid src
+31.250 :    3784 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+31.573 :    3799 [L-BATTERY]bat_check_result: 0/0/0/0
+31.635 :    3802 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+31.636 :    3802 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+32.151 :    3827 [L-FMU][DB]FATAL ERROR fail to fill data 416 for invalid src
+32.290 :    3834 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+32.761 :    3856 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+32.766 :    3856 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+33.212 :    3878 [L-FMU][DB]FATAL ERROR fail to fill data 417 for invalid src
+33.332 :    3884 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+33.885 :    3910 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+33.886 :    3910 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+34.276 :    3929 [L-FMU][DB]FATAL ERROR fail to fill data 418 for invalid src
+34.375 :    3934 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+35.011 :    3964 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+35.016 :    3964 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+35.339 :    3980 [L-FMU][DB]FATAL ERROR fail to fill data 419 for invalid src
+35.415 :    3984 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+36.135 :    4018 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-492/1
+36.136 :    4018 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+36.401 :    4031 [L-FMU][DB]FATAL ERROR fail to fill data 420 for invalid src
+36.457 :    4034 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+36.782 :    4049 [L-BATTERY]bat_check_result: 0/0/0/0
+37.260 :    4072 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+37.264 :    4072 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-510/1
+37.500 :    4084 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+38.386 :    4126 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+38.389 :    4126 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+38.526 :    4133 [L-FMU][DB]FATAL ERROR fail to fill data 34 for invalid src
+38.540 :    4134 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+38.969 :    4154 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+39.510 :    4180 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-492/1
+39.514 :    4180 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3786/-510/1
+39.583 :    4184 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+39.589 :    4184 [L-FMU][DB]FATAL ERROR fail to fill data 39 for invalid src
+40.625 :    4234 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+40.636 :    4234 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+40.641 :    4234 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+40.656 :    4235 [L-FMU][DB]FATAL ERROR fail to fill data 43 for invalid src
+41.667 :    4284 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+41.714 :    4286 [L-FMU][DB]FATAL ERROR fail to fill data 44 for invalid src
+41.760 :    4288 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+41.761 :    4288 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+41.990 :    4299 [L-BATTERY]bat_check_result: 0/0/0/0
+42.707 :    4334 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+42.776 :    4337 [L-FMU][DB]FATAL ERROR fail to fill data 78 for invalid src
+42.886 :    4342 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+42.889 :    4342 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+43.750 :    4384 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+43.838 :    4388 [L-FMU][DB]FATAL ERROR fail to fill data 79 for invalid src
+44.011 :    4396 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+44.016 :    4396 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-520/1
+44.791 :    4434 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+44.901 :    4439 [L-FMU][DB]FATAL ERROR fail to fill data 89 for invalid src
+45.136 :    4450 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+45.141 :    4450 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+45.832 :    4484 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+45.964 :    4490 [L-FMU][DB]FATAL ERROR fail to fill data 140 for invalid src
+46.261 :    4504 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+46.266 :    4504 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+46.875 :    4534 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+47.026 :    4541 [L-FMU][DB]FATAL ERROR fail to fill data 208 for invalid src
+47.198 :    4549 [L-BATTERY]bat_check_result: 0/0/0/0
+47.385 :    4558 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+47.386 :    4558 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+47.917 :    4584 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+48.089 :    4592 [L-FMU][DB]FATAL ERROR fail to fill data 228 for invalid src
+48.511 :    4612 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+48.514 :    4612 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+48.957 :    4634 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+49.151 :    4643 [L-FMU][DB]FATAL ERROR fail to fill data 229 for invalid src
+49.385 :    4654 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+49.636 :    4666 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-496/1
+49.641 :    4666 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+50.000 :    4684 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+50.214 :    4694 [L-FMU][DB]FATAL ERROR fail to fill data 230 for invalid src
+50.761 :    4720 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+50.766 :    4720 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-520/1
+51.041 :    4734 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+51.276 :    4745 [L-FMU][DB]FATAL ERROR fail to fill data 231 for invalid src
+51.886 :    4774 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+51.891 :    4774 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+52.083 :    4784 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+52.339 :    4796 [L-FMU][DB]FATAL ERROR fail to fill data 276 for invalid src
+52.406 :    4799 [L-BATTERY]bat_check_result: 0/0/0/0
+53.010 :    4828 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3787/-492/1
+53.011 :    4828 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+53.125 :    4834 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+53.401 :    4847 [L-FMU][DB]FATAL ERROR fail to fill data 277 for invalid src
+54.136 :    4882 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+54.139 :    4882 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+54.167 :    4884 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+54.464 :    4898 [L-FMU][DB]FATAL ERROR fail to fill data 278 for invalid src
+55.207 :    4934 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+55.261 :    4936 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+55.266 :    4936 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+55.526 :    4949 [L-FMU][DB]FATAL ERROR fail to fill data 279 for invalid src
+56.250 :    4984 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+56.386 :    4990 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+56.391 :    4990 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+56.589 :    5000 [L-FMU][DB]FATAL ERROR fail to fill data 280 for invalid src
+57.291 :    5034 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+57.514 :    5044 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+57.516 :    5044 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-520/1
+57.615 :    5049 [L-BATTERY]bat_check_result: 0/0/0/0
+57.651 :    5051 [L-FMU][DB]FATAL ERROR fail to fill data 281 for invalid src
+58.332 :    5084 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+58.636 :    5098 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+58.639 :    5098 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+58.713 :    5102 [L-FMU][DB]FATAL ERROR fail to fill data 282 for invalid src
+59.375 :    5134 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+59.761 :    5152 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+59.764 :    5152 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+59.776 :    5153 [L-FMU][DB]FATAL ERROR fail to fill data 283 for invalid src
+59.802 :    5154 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+60.415 :    5184 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+60.839 :    5204 [L-FMU][DB]FATAL ERROR fail to fill data 284 for invalid src
+60.886 :    5206 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+60.891 :    5206 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+61.457 :    5234 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+61.901 :    5255 [L-FMU][DB]FATAL ERROR fail to fill data 328 for invalid src
+62.011 :    5260 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+62.014 :    5260 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+62.500 :    5284 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+62.823 :    5299 [L-BATTERY]bat_check_result: 0/0/0/0
+62.964 :    5306 [L-FMU][DB]FATAL ERROR fail to fill data 329 for invalid src
+63.139 :    5314 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+63.141 :    5314 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+63.540 :    5334 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+64.026 :    5357 [L-FMU][DB]FATAL ERROR fail to fill data 330 for invalid src
+64.260 :    5368 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+64.261 :    5368 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-510/1
+64.582 :    5384 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+65.089 :    5408 [L-FMU][DB]FATAL ERROR fail to fill data 331 for invalid src
+65.386 :    5422 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+65.389 :    5422 [L-BATTERY][2]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:40/41/260/3785/-516/1
+65.625 :    5434 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+66.151 :    5459 [L-FMU][DB]FATAL ERROR fail to fill data 332 for invalid src
+66.511 :    5476 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+66.667 :    5484 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+67.214 :    5510 [L-FMU][DB]FATAL ERROR fail to fill data 333 for invalid src
+67.636 :    5530 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+67.708 :    5534 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+68.032 :    5549 [L-BATTERY]bat_check_result: 0/0/0/0
+68.276 :    5561 [L-FMU][DB]FATAL ERROR fail to fill data 334 for invalid src
+68.750 :    5584 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+68.764 :    5584 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+69.339 :    5612 [L-FMU][DB]FATAL ERROR fail to fill data 391 for invalid src
+69.885 :    5638 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+70.219 :    5654 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+70.401 :    5663 [L-FMU][DB]FATAL ERROR fail to fill data 408 for invalid src
+70.833 :    5684 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+71.011 :    5692 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+71.464 :    5714 [L-FMU][DB]FATAL ERROR fail to fill data 409 for invalid src
+71.875 :    5734 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+72.136 :    5746 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-496/1
+72.141 :    5746 [L-BATTERY][1]type[1]soc_remain soc/soc_pre/temp/vol/cur:41/41/258/3785/-496
+72.526 :    5765 [L-FMU][DB]FATAL ERROR fail to fill data 410 for invalid src
+72.916 :    5784 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+73.240 :    5799 [L-BATTERY]bat_check_result: 0/1/0/0
+73.261 :    5800 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+73.266 :    5800 [L-BATTERY][1]type[1]soc_remain soc/soc_pre/temp/vol/cur:41/41/258/3785/-492
+73.589 :    5816 [L-FMU][DB]FATAL ERROR fail to fill data 411 for invalid src
+73.958 :    5834 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+74.386 :    5854 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+74.391 :    5854 [L-BATTERY][1]type[1]soc_remain soc/soc_pre/temp/vol/cur:41/41/258/3785/-492
+74.651 :    5867 [L-FMU][DB]FATAL ERROR fail to fill data 412 for invalid src
+75.000 :    5884 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+75.510 :    5908 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+75.511 :    5908 [L-BATTERY][1]type[1]soc_remain soc/soc_pre/temp/vol/cur:41/41/258/3785/-492
+75.712 :    5918 [L-FMU][DB]FATAL ERROR fail to fill data 413 for invalid src
+76.042 :    5934 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+76.636 :    5962 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+76.639 :    5962 [L-BATTERY][1]type[1]soc_remain soc/soc_pre/temp/vol/cur:41/41/258/3785/-492
+76.776 :    5969 [L-FMU][DB]FATAL ERROR fail to fill data 414 for invalid src
+77.761 :    6016 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-492/1
+77.766 :    6016 [L-BATTERY][1]type[1]soc_remain soc/soc_pre/temp/vol/cur:41/41/258/3785/-492
+77.839 :    6020 [L-FMU][DB]FATAL ERROR fail to fill data 415 for invalid src
+78.125 :    6034 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+78.448 :    6049 [L-BATTERY]bat_check_result: 0/1/0/0
+78.886 :    6070 [L-BATTERY][1]type[1][0]socv_based socAh/soc/temp/vol/cur/flag:44/41/258/3785/-488/1
+78.889 :    6070 [L-BATTERY][1]type[1]soc_remain soc/soc_pre/temp/vol/cur:41/41/258/3785/-488
+78.901 :    6071 [L-FMU][DB]FATAL ERROR fail to fill data 416 for invalid src
+79.166 :    6084 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+79.570 :    6103 [L-NS][AHRS],qg obv[7]sensor config: dt_tick is 0.000000 <=0!!!
+79.570 :    6103 [L-NS][AHRS],qg obv buffer size[210/270]
+79.571 :    6103 [L-NS][AHRS],pva obv buffer size[231/270]
+79.964 :    6122 [L-FMU][DB]FATAL ERROR fail to fill data 417 for invalid src
+80.208 :    6134 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+80.635 :    6154 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+81.026 :    6173 [L-FMU][DB]FATAL ERROR fail to fill data 418 for invalid src
+81.250 :    6184 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+82.089 :    6224 [L-FMU][DB]FATAL ERROR fail to fill data 419 for invalid src
+83.151 :    6275 [L-FMU][DB]FATAL ERROR fail to fill data 420 for invalid src
+83.657 :    6299 [L-BATTERY]bat_check_result: 0/1/0/0
+84.375 :    6334 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+85.276 :    6377 [L-FMU][DB]FATAL ERROR fail to fill data 34 for invalid src
+85.416 :    6384 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+86.338 :    6428 [L-FMU][DB]FATAL ERROR fail to fill data 39 for invalid src
+86.457 :    6434 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+87.401 :    6479 [L-FMU][DB]FATAL ERROR fail to fill data 43 for invalid src
+87.500 :    6484 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+88.464 :    6530 [L-FMU][DB]FATAL ERROR fail to fill data 44 for invalid src
+88.542 :    6534 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+88.865 :    6549 [L-BATTERY]bat_check_result: 0/1/0/0
+89.526 :    6581 [L-FMU][DB]FATAL ERROR fail to fill data 78 for invalid src
+89.582 :    6584 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+90.589 :    6632 [L-FMU][DB]FATAL ERROR fail to fill data 79 for invalid src
+90.625 :    6634 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+91.052 :    6654 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+91.651 :    6683 [L-FMU][DB]FATAL ERROR fail to fill data 89 for invalid src
+91.666 :    6684 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+92.708 :    6734 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+92.714 :    6734 [L-FMU][DB]FATAL ERROR fail to fill data 140 for invalid src
+93.750 :    6784 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+93.777 :    6785 [L-FMU][DB]FATAL ERROR fail to fill data 208 for invalid src
+94.073 :    6799 [L-BATTERY]bat_check_result: 0/1/0/0
+94.790 :    6834 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+94.839 :    6836 [L-FMU][DB]FATAL ERROR fail to fill data 228 for invalid src
+95.832 :    6884 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+95.901 :    6887 [L-FMU][DB]FATAL ERROR fail to fill data 229 for invalid src
+96.875 :    6934 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+96.963 :    6938 [L-FMU][DB]FATAL ERROR fail to fill data 230 for invalid src
+98.026 :    6989 [L-FMU][DB]FATAL ERROR fail to fill data 231 for invalid src
+98.958 :    7034 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+99.094 :    7040 [L-FMU][DB]FATAL ERROR fail to fill data 276 for invalid src
+99.282 :    7049 [L-BATTERY]bat_check_result: 0/1/0/0
+100.000 :    7084 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+100.151 :    7091 [L-FMU][DB]FATAL ERROR fail to fill data 277 for invalid src
+101.041 :    7134 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+101.213 :    7142 [L-FMU][DB]FATAL ERROR fail to fill data 278 for invalid src
+101.469 :    7154 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+102.083 :    7184 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+102.276 :    7193 [L-FMU][DB]FATAL ERROR fail to fill data 279 for invalid src
+102.867 :    7221 [L-N_MIS]Fail to check mis 14. Reset
+102.867 :    7221 [L-N_MIS]Exit mis 14. New mis 25
+102.867 :    7221 [L-N_MIS]send cur mission exit data, mis:0, exit_reason:0.
+102.867 :    7221 [L-N_MIS]Switch new mis 25 req 16 from mis 14 req 4
+102.882 :    7222 [L-N_MIS]send cur mission exit data, mis:0, exit_reason:0.
+102.882 :    7222 [L-N_MIS]Switch new mis 3 req 2 from mis 25 req 16
+102.882 :    7222 [L-FLYMODE]SWITCH2HOVER!
+103.125 :    7234 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+103.339 :    7244 [L-FMU][DB]FATAL ERROR fail to fill data 280 for invalid src
+104.166 :    7284 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+104.401 :    7295 [L-FMU][DB]FATAL ERROR fail to fill data 281 for invalid src
+104.490 :    7299 [L-BATTERY]bat_check_result: 0/1/0/0
+105.207 :    7334 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+105.464 :    7346 [L-FMU][DB]FATAL ERROR fail to fill data 282 for invalid src
+106.250 :    7384 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+106.526 :    7397 [L-FMU][DB]FATAL ERROR fail to fill data 283 for invalid src
+107.290 :    7434 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+107.589 :    7448 [L-FMU][DB]FATAL ERROR fail to fill data 284 for invalid src
+108.332 :    7484 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+108.651 :    7499 [L-FMU][DB]FATAL ERROR fail to fill data 328 for invalid src
+109.047 :    7518 [L-FMU/MOTOR]safe_near_grd:true
+109.375 :    7534 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+109.698 :    7549 [L-BATTERY]bat_check_result: 0/1/0/0
+109.714 :    7550 [L-FMU][DB]FATAL ERROR fail to fill data 329 for invalid src
+110.416 :    7584 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+110.776 :    7601 [L-FMU][DB]FATAL ERROR fail to fill data 330 for invalid src
+111.458 :    7634 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+111.694 :    7645 [L-FLYMODE]rc2wm220 sets force landing!
+111.694 :    7645 [L-FLYMODE]Recv force landing cmd!(0,0,1)
+111.695 :    7645 [L-N_MIS]Exit mis 3. New mis 11
+111.695 :    7645 [L-N_MIS]send cur mission exit data, mis:0, exit_reason:0.
+111.695 :    7645 [L-N_MIS]Switch new mis 11 req 9 from mis 3 req 2
+111.698 :    7645 [L-FLYMODE]Req force landing!
+111.698 :    7645 [L-FLYMODE]reset all force landing cmd
+111.839 :    7652 [L-FMU][DB]FATAL ERROR fail to fill data 331 for invalid src
+111.886 :    7654 [L-DBG1]realname limited:driver:APP_NEVER_CONNECT viechle:SUCCESS
+112.319 :    7675 [L-RC]Start landing. rc vib!
+112.500 :    7684 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+112.901 :    7703 [L-FMU][DB]FATAL ERROR fail to fill data 332 for invalid src
+113.540 :    7734 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+113.964 :    7754 [L-FMU][DB]FATAL ERROR fail to fill data 333 for invalid src
+114.906 :    7799 [L-BATTERY]bat_check_result: 0/1/0/0
+115.026 :    7805 [L-FMU][DB]FATAL ERROR fail to fill data 334 for invalid src
+115.625 :    7834 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+116.089 :    7856 [L-FMU][DB]FATAL ERROR fail to fill data 391 for invalid src
+116.665 :    7884 [L-SEND DATA][ERROR][AddBag] Bag 0 of device 9 is occupied
+117.151 :    7907 [L-FMU][DB]FATAL ERROR fail to fill data 408 for invalid src
+117.254 :    7912 [L-FMU/FSM]state changed. cur: on ground
+117.258 :    7912 [L-NS][AHRS] reset baro just after land
+117.274 :    7913 [L-FMU/MOTOR] Stop. reason:ACT.landing
