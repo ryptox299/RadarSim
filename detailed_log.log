@@ -8,34 +8,33 @@ Initializing DJI OSDK...
 Read App ID
 User Configuration read successfully. 
 
-[827432.987]ERRORLOG/1 @ initVehicle, L222: Failed to initialize ACM Linker channel!
-[827433.009]STATUS/1 @ getDroneVersion, L1702: ret = 0
-[827433.009]STATUS/1 @ parseDroneVersionInfo, L1122: Device Serial No. = 1DADGB70010084
-[827433.009]STATUS/1 @ parseDroneVersionInfo, L1124: Firmware = 3.4.3.44
-[827433.009]STATUS/1 @ functionalSetUp, L279: Shake hand with drone successfully by getting drone version.
-[827433.009]STATUS/1 @ legacyX5SEnableTask, L56: Legacy X5S Enable task created.
-[827434.009]STATUS/1 @ sendHeartbeatToFCTask, L1576: OSDK send heart beat to fc task created.
-[827434.246]STATUS/1 @ removePackage, L457: Remove package 0 successful.
-[827434.246]STATUS/1 @ Control, L40: The control class is going to be deprecated.It will be better to use the FlightController class instead!
-[827434.246]STATUS/1 @ FileMgrImpl, L253: register download file callback handler successfully.
-[827434.246]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
-[827434.246]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
-[827434.246]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
-[827434.246]STATUS/1 @ initDJIHms, L900: DJI HMS is not supported on this platform!
+[864097.973]ERRORLOG/1 @ initVehicle, L222: Failed to initialize ACM Linker channel!
+[864098.003]STATUS/1 @ getDroneVersion, L1702: ret = 0
+[864098.003]STATUS/1 @ parseDroneVersionInfo, L1122: Device Serial No. = 1DADGB70010084
+[864098.003]STATUS/1 @ parseDroneVersionInfo, L1124: Firmware = 3.4.3.44
+[864098.003]STATUS/1 @ functionalSetUp, L279: Shake hand with drone successfully by getting drone version.
+[864098.004]STATUS/1 @ legacyX5SEnableTask, L56: Legacy X5S Enable task created.
+[864099.003]STATUS/1 @ sendHeartbeatToFCTask, L1576: OSDK send heart beat to fc task created.
+[864099.204]STATUS/1 @ Control, L40: The control class is going to be deprecated.It will be better to use the FlightController class instead!
+[864099.204]STATUS/1 @ FileMgrImpl, L253: register download file callback handler successfully.
+[864099.205]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[864099.205]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[864099.205]STATUS/1 @ PSDKModule, L98: MOP only support M300, so mop client will not be initialized here.
+[864099.205]STATUS/1 @ initDJIHms, L900: DJI HMS is not supported on this platform!
 
-[827434.247]STATUS/1 @ init, L247: USB is not plugged or initialized successfully. Advacned-Sensing will not run.
-[827434.247]STATUS/1 @ activate, L1329: version 0x304032C
+[864099.205]STATUS/1 @ init, L247: USB is not plugged or initialized successfully. Advacned-Sensing will not run.
+[864099.205]STATUS/1 @ activate, L1329: version 0x304032C
 
-[827434.285]STATUS/1 @ activate, L1367: Activation successful
+[864099.276]STATUS/1 @ activate, L1367: Activation successful
 
 Attempting to obtain Control Authority...
 Obtained Control Authority.
 OSDK Initialized and Flight Sample created.
 Setting up Telemetry Subscription for Monitoring...
-[827435.367]STATUS/1 @ verify, L244: Verify subscription successful.
+[864100.361]STATUS/1 @ verify, L244: Verify subscription successful.
 Successfully initialized package 0 with Flight Status and Display Mode topics.
-[827435.392]STATUS/1 @ startPackage, L345: Start package 0 result: 0.
-[827435.392]STATUS/1 @ startPackage, L347: Package 0 info: freq=1, nTopics=2.
+[864100.399]STATUS/1 @ startPackage, L345: Start package 0 result: 0.
+[864100.399]STATUS/1 @ startPackage, L347: Package 0 info: freq=1, nTopics=2.
 
 Successfully started package 0.
 Starting monitoring thread...
@@ -51,9 +50,9 @@ INFO: Flight control is ENABLED proceeding to main menu.
 | [f] Process Minimal Radar (No Control)    |
 | [g] Process Beacon/Wall Only (No Control) |
 | [s] STOP Current Processing Thread        |
-
 | [q] Quit                                  |
 ---------------------------------------------
+
 Enter command: 
 
 **** MONITORING WARNING ****
@@ -72,259 +71,299 @@ Starting Wall+Beacon Following using default bridge: python_bridge.py
 | [e] Process Full Radar (No Control)       |
 | [f] Process Minimal Radar (No Control)    |
 | [g] Process Beacon/Wall Only (No Control) |
-Processing thread started. Bridge: | [s] STOP Current Processing Thread        |
+| [s] STOP Current Processing Thread        |
 | [q] Quit                                  |
----------------------------------------------
-python_bridge.pyEnter command: , Control Enabled: true
+Processing thread started. Bridge: ---------------------------------------------
+Enter command: python_bridge.py, Control Enabled: true
 Starting Python bridge (python_bridge.py)...
-2025-04-13 23:42:52,938 - INFO - Starting Python Bridge Server...
-2025-04-13 23:42:52,939 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
+2025-04-14 09:53:50,776 - INFO - Starting Python Bridge Server...
+2025-04-14 09:53:50,777 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
 Python bridge potentially started.
 Connected to Python bridge.
 [Processing Thread] Attempting to re-obtain Control Authority after reconnect...
-2025-04-13 23:42:55,688 - INFO - C++ client connected: ('127.0.0.1', 39908)
-2025-04-13 23:42:55,688 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 39908)
-2025-04-13 23:42:55,690 - INFO - Successfully connected to simulator for client ('127.0.0.1', 39908)
+2025-04-14 09:53:53,576 - INFO - C++ client connected: ('127.0.0.1', 52178)
+2025-04-14 09:53:53,576 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 52178)
+2025-04-14 09:53:53,579 - INFO - Successfully connected to simulator for client ('127.0.0.1', 52178)
 [Processing Thread] Successfully re-obtained Control Authority.
+[Processing Thread] Sending initial Hover command after re-obtaining authority...
+[Processing Thread] Initial Hover command sent.
 Processing thread: Connection successful. Reading data stream...
-1743607808: Likely WALL candidate distance: 2.04 meters. Target BEACON Azimuth: 20 deg.
-Control Status: TargetWall=8 | CurrentWall=2.040000 | TargetAzimuth=0 | CurrentAzimuth=20.000000 | Computed Velocity(X=-0.8, Y=0.4) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607808: X=-0.8, Y=0.4
-[DEBUG] flightCtrl command sent for second 1743607808.
 
 
 **** MONITORING INFO ****
 Entered SDK Control Mode (NAVI_SDK_CTRL / 17)
 **** MONITORING INFO ****
 
+1743607808: Likely WALL candidate distance: 2.04 meters. Target BEACON Azimuth: 20 deg.
+Control Status: TargetWall=8 | CurrentWall=2.040000 | TargetAzimuth=0 | CurrentAzimuth=20.000000 | Computed Velocity(X=-0.8, Y=0.4) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607808: X=-0.8, Y=0.4
+[DEBUG] flightCtrl command sent for second 1743607808.
 1743607809: Likely WALL candidate distance: 2.24 meters. Target BEACON Azimuth: 19.5111 deg.
 Control Status: TargetWall=8 | CurrentWall=2.240000 | TargetAzimuth=0 | CurrentAzimuth=19.511112 | Computed Velocity(X=-0.8, Y=0.390222) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607809: X=-0.8, Y=0.390222
+[DEBUG] Preparing to send flightCtrl command for second 1743607809: X=-0.8, Y=0.390222
 [DEBUG] flightCtrl command sent for second 1743607809.
 1743607810: Likely WALL candidate distance: 2.44 meters. Target BEACON Azimuth: 19.0667 deg.
 Control Status: TargetWall=8 | CurrentWall=2.440000 | TargetAzimuth=0 | CurrentAzimuth=19.066668 | Computed Velocity(X=-0.8, Y=0.381333) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607810: X=-0.8, Y=0.381333
+[DEBUG] Preparing to send flightCtrl command for second 1743607810: X=-0.8, Y=0.381333
 [DEBUG] flightCtrl command sent for second 1743607810.
 1743607811: Likely WALL candidate distance: 2.64 meters. Target BEACON Azimuth: 18.6222 deg.
 Control Status: TargetWall=8 | CurrentWall=2.639999 | TargetAzimuth=0 | CurrentAzimuth=18.622223 | Computed Velocity(X=-0.8, Y=0.372444) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607811: X=-0.8, Y=0.372444
+[DEBUG] Preparing to send flightCtrl command for second 1743607811: X=-0.8, Y=0.372444
 [DEBUG] flightCtrl command sent for second 1743607811.
 1743607812: Likely WALL candidate distance: 2.84 meters. Target BEACON Azimuth: 18.1778 deg.
 Control Status: TargetWall=8 | CurrentWall=2.839999 | TargetAzimuth=0 | CurrentAzimuth=18.177780 | Computed Velocity(X=-0.8, Y=0.363556) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607812: X=-0.8, Y=0.363556
+[DEBUG] Preparing to send flightCtrl command for second 1743607812: X=-0.8, Y=0.363556
 [DEBUG] flightCtrl command sent for second 1743607812.
 1743607813: Likely WALL candidate distance: 3.04 meters. Target BEACON Azimuth: 17.7333 deg.
 Control Status: TargetWall=8 | CurrentWall=3.039999 | TargetAzimuth=0 | CurrentAzimuth=17.733335 | Computed Velocity(X=-0.8, Y=0.354667) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607813: X=-0.8, Y=0.354667
+[DEBUG] Preparing to send flightCtrl command for second 1743607813: X=-0.8, Y=0.354667
 [DEBUG] flightCtrl command sent for second 1743607813.
 1743607814: Likely WALL candidate distance: 3.24 meters. Target BEACON Azimuth: 17.2889 deg.
 Control Status: TargetWall=8 | CurrentWall=3.239999 | TargetAzimuth=0 | CurrentAzimuth=17.288891 | Computed Velocity(X=-0.8, Y=0.345778) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607814: X=-0.8, Y=0.345778
+[DEBUG] Preparing to send flightCtrl command for second 1743607814: X=-0.8, Y=0.345778
 [DEBUG] flightCtrl command sent for second 1743607814.
 1743607815: Likely WALL candidate distance: 3.44 meters. Target BEACON Azimuth: 16.8444 deg.
 Control Status: TargetWall=8 | CurrentWall=3.439999 | TargetAzimuth=0 | CurrentAzimuth=16.844448 | Computed Velocity(X=-0.8, Y=0.336889) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607815: X=-0.8, Y=0.336889
+[DEBUG] Preparing to send flightCtrl command for second 1743607815: X=-0.8, Y=0.336889
 [DEBUG] flightCtrl command sent for second 1743607815.
 1743607816: Likely WALL candidate distance: 3.64 meters. Target BEACON Azimuth: 16.4 deg.
 Control Status: TargetWall=8 | CurrentWall=3.639998 | TargetAzimuth=0 | CurrentAzimuth=16.400003 | Computed Velocity(X=-0.8, Y=0.328) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607816: X=-0.8, Y=0.328
+[DEBUG] Preparing to send flightCtrl command for second 1743607816: X=-0.8, Y=0.328
 [DEBUG] flightCtrl command sent for second 1743607816.
 1743607817: Likely WALL candidate distance: 3.84 meters. Target BEACON Azimuth: 15.9556 deg.
 Control Status: TargetWall=8 | CurrentWall=3.839998 | TargetAzimuth=0 | CurrentAzimuth=15.955560 | Computed Velocity(X=-0.8, Y=0.319111) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607817: X=-0.8, Y=0.319111
+[DEBUG] Preparing to send flightCtrl command for second 1743607817: X=-0.8, Y=0.319111
 [DEBUG] flightCtrl command sent for second 1743607817.
 1743607818: Likely WALL candidate distance: 4.04 meters. Target BEACON Azimuth: 15.5111 deg.
 Control Status: TargetWall=8 | CurrentWall=4.039998 | TargetAzimuth=0 | CurrentAzimuth=15.511115 | Computed Velocity(X=-0.8, Y=0.310222) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607818: X=-0.8, Y=0.310222
+[DEBUG] Preparing to send flightCtrl command for second 1743607818: X=-0.8, Y=0.310222
 [DEBUG] flightCtrl command sent for second 1743607818.
 1743607819: Likely WALL candidate distance: 4.24 meters. Target BEACON Azimuth: 15.0667 deg.
 Control Status: TargetWall=8 | CurrentWall=4.239998 | TargetAzimuth=0 | CurrentAzimuth=15.066671 | Computed Velocity(X=-0.8, Y=0.301333) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607819: X=-0.8, Y=0.301333
+[DEBUG] Preparing to send flightCtrl command for second 1743607819: X=-0.8, Y=0.301333
 [DEBUG] flightCtrl command sent for second 1743607819.
 1743607820: Likely WALL candidate distance: 4.44 meters. Target BEACON Azimuth: 14.6222 deg.
 Control Status: TargetWall=8 | CurrentWall=4.439998 | TargetAzimuth=0 | CurrentAzimuth=14.622228 | Computed Velocity(X=-0.8, Y=0.292445) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607820: X=-0.8, Y=0.292445
+[DEBUG] Preparing to send flightCtrl command for second 1743607820: X=-0.8, Y=0.292445
 [DEBUG] flightCtrl command sent for second 1743607820.
 1743607821: Likely WALL candidate distance: 4.64 meters. Target BEACON Azimuth: 14.1778 deg.
 Control Status: TargetWall=8 | CurrentWall=4.639997 | TargetAzimuth=0 | CurrentAzimuth=14.177783 | Computed Velocity(X=-0.8, Y=0.283556) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607821: X=-0.8, Y=0.283556
+[DEBUG] Preparing to send flightCtrl command for second 1743607821: X=-0.8, Y=0.283556
 [DEBUG] flightCtrl command sent for second 1743607821.
 1743607822: Likely WALL candidate distance: 4.84 meters. Target BEACON Azimuth: 13.7333 deg.
 Control Status: TargetWall=8 | CurrentWall=4.839997 | TargetAzimuth=0 | CurrentAzimuth=13.733339 | Computed Velocity(X=-0.8, Y=0.274667) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607822: X=-0.8, Y=0.274667
+[DEBUG] Preparing to send flightCtrl command for second 1743607822: X=-0.8, Y=0.274667
 [DEBUG] flightCtrl command sent for second 1743607822.
 1743607823: Likely WALL candidate distance: 5.04 meters. Target BEACON Azimuth: 13.2889 deg.
 Control Status: TargetWall=8 | CurrentWall=5.039997 | TargetAzimuth=0 | CurrentAzimuth=13.288896 | Computed Velocity(X=-0.8, Y=0.265778) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607823: X=-0.8, Y=0.265778
+[DEBUG] Preparing to send flightCtrl command for second 1743607823: X=-0.8, Y=0.265778
 [DEBUG] flightCtrl command sent for second 1743607823.
 1743607824: Likely WALL candidate distance: 5.24 meters. Target BEACON Azimuth: 12.8445 deg.
 Control Status: TargetWall=8 | CurrentWall=5.239997 | TargetAzimuth=0 | CurrentAzimuth=12.844451 | Computed Velocity(X=-0.8, Y=0.256889) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607824: X=-0.8, Y=0.256889
+[DEBUG] Preparing to send flightCtrl command for second 1743607824: X=-0.8, Y=0.256889
 [DEBUG] flightCtrl command sent for second 1743607824.
 1743607825: Likely WALL candidate distance: 5.44 meters. Target BEACON Azimuth: 12.4 deg.
 Control Status: TargetWall=8 | CurrentWall=5.439997 | TargetAzimuth=0 | CurrentAzimuth=12.400007 | Computed Velocity(X=-0.8, Y=0.248) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607825: X=-0.8, Y=0.248
+[DEBUG] Preparing to send flightCtrl command for second 1743607825: X=-0.8, Y=0.248
 [DEBUG] flightCtrl command sent for second 1743607825.
 1743607826: Likely WALL candidate distance: 5.64 meters. Target BEACON Azimuth: 11.9556 deg.
 Control Status: TargetWall=8 | CurrentWall=5.639997 | TargetAzimuth=0 | CurrentAzimuth=11.955564 | Computed Velocity(X=-0.8, Y=0.239111) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607826: X=-0.8, Y=0.239111
+[DEBUG] Preparing to send flightCtrl command for second 1743607826: X=-0.8, Y=0.239111
 [DEBUG] flightCtrl command sent for second 1743607826.
 1743607827: Likely WALL candidate distance: 5.84 meters. Target BEACON Azimuth: 11.5111 deg.
 Control Status: TargetWall=8 | CurrentWall=5.839996 | TargetAzimuth=0 | CurrentAzimuth=11.511119 | Computed Velocity(X=-0.8, Y=0.230222) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607827: X=-0.8, Y=0.230222
+[DEBUG] Preparing to send flightCtrl command for second 1743607827: X=-0.8, Y=0.230222
 [DEBUG] flightCtrl command sent for second 1743607827.
 1743607828: Likely WALL candidate distance: 6.04 meters. Target BEACON Azimuth: 11.0667 deg.
 Control Status: TargetWall=8 | CurrentWall=6.039996 | TargetAzimuth=0 | CurrentAzimuth=11.066675 | Computed Velocity(X=-0.8, Y=0.221334) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607828: X=-0.8, Y=0.221334
+[DEBUG] Preparing to send flightCtrl command for second 1743607828: X=-0.8, Y=0.221334
 [DEBUG] flightCtrl command sent for second 1743607828.
 1743607829: Likely WALL candidate distance: 6.24 meters. Target BEACON Azimuth: 10.6222 deg.
 Control Status: TargetWall=8 | CurrentWall=6.239996 | TargetAzimuth=0 | CurrentAzimuth=10.622231 | Computed Velocity(X=-0.8, Y=0.212445) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607829: X=-0.8, Y=0.212445
+[DEBUG] Preparing to send flightCtrl command for second 1743607829: X=-0.8, Y=0.212445
 [DEBUG] flightCtrl command sent for second 1743607829.
 1743607830: Likely WALL candidate distance: 6.44 meters. Target BEACON Azimuth: 10.1778 deg.
 Control Status: TargetWall=8 | CurrentWall=6.439996 | TargetAzimuth=0 | CurrentAzimuth=10.177787 | Computed Velocity(X=-0.780002, Y=0.203556) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607830: X=-0.780002, Y=0.203556
+[DEBUG] Preparing to send flightCtrl command for second 1743607830: X=-0.780002, Y=0.203556
 [DEBUG] flightCtrl command sent for second 1743607830.
 1743607831: Likely WALL candidate distance: 6.64 meters. Target BEACON Azimuth: 9.73334 deg.
 Control Status: TargetWall=8 | CurrentWall=6.639996 | TargetAzimuth=0 | CurrentAzimuth=9.733343 | Computed Velocity(X=-0.680002, Y=0.194667) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607831: X=-0.680002, Y=0.194667
+[DEBUG] Preparing to send flightCtrl command for second 1743607831: X=-0.680002, Y=0.194667
 [DEBUG] flightCtrl command sent for second 1743607831.
 1743607832: Likely WALL candidate distance: 6.84 meters. Target BEACON Azimuth: 9.2889 deg.
 Control Status: TargetWall=8 | CurrentWall=6.839995 | TargetAzimuth=0 | CurrentAzimuth=9.288899 | Computed Velocity(X=-0.580002, Y=0.185778) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607832: X=-0.580002, Y=0.185778
+[DEBUG] Preparing to send flightCtrl command for second 1743607832: X=-0.580002, Y=0.185778
 [DEBUG] flightCtrl command sent for second 1743607832.
 1743607833: Likely WALL candidate distance: 7.04 meters. Target BEACON Azimuth: 8.84445 deg.
 Control Status: TargetWall=8 | CurrentWall=7.039995 | TargetAzimuth=0 | CurrentAzimuth=8.844455 | Computed Velocity(X=-0.480002, Y=0.176889) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607833: X=-0.480002, Y=0.176889
+[DEBUG] Preparing to send flightCtrl command for second 1743607833: X=-0.480002, Y=0.176889
 [DEBUG] flightCtrl command sent for second 1743607833.
 1743607834: Likely WALL candidate distance: 7.24 meters. Target BEACON Azimuth: 8.40001 deg.
 Control Status: TargetWall=8 | CurrentWall=7.239995 | TargetAzimuth=0 | CurrentAzimuth=8.400011 | Computed Velocity(X=-0.380002, Y=0.168) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607834: X=-0.380002, Y=0.168
+[DEBUG] Preparing to send flightCtrl command for second 1743607834: X=-0.380002, Y=0.168
 [DEBUG] flightCtrl command sent for second 1743607834.
 1743607835: Likely WALL candidate distance: 7.43999 meters. Target BEACON Azimuth: 7.95557 deg.
 Control Status: TargetWall=8 | CurrentWall=7.439995 | TargetAzimuth=0 | CurrentAzimuth=7.955567 | Computed Velocity(X=-0.280003, Y=0.159111) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607835: X=-0.280003, Y=0.159111
+[DEBUG] Preparing to send flightCtrl command for second 1743607835: X=-0.280003, Y=0.159111
 [DEBUG] flightCtrl command sent for second 1743607835.
 1743607836: Likely WALL candidate distance: 7.63999 meters. Target BEACON Azimuth: 7.51112 deg.
 Control Status: TargetWall=8 | CurrentWall=7.639995 | TargetAzimuth=0 | CurrentAzimuth=7.511123 | Computed Velocity(X=-0.180003, Y=0.150222) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607836: X=-0.180003, Y=0.150222
+[DEBUG] Preparing to send flightCtrl command for second 1743607836: X=-0.180003, Y=0.150222
 [DEBUG] flightCtrl command sent for second 1743607836.
 1743607837: Likely WALL candidate distance: 7.83999 meters. Target BEACON Azimuth: 7.06668 deg.
 Control Status: TargetWall=8 | CurrentWall=7.839994 | TargetAzimuth=0 | CurrentAzimuth=7.066679 | Computed Velocity(X=0, Y=0.141334) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607837: X=0, Y=0.141334
+[DEBUG] Preparing to send flightCtrl command for second 1743607837: X=0, Y=0.141334
 [DEBUG] flightCtrl command sent for second 1743607837.
 1743607838: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 6.62223 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=6.622235 | Computed Velocity(X=0, Y=0.132445) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607838: X=0, Y=0.132445
+[DEBUG] Preparing to send flightCtrl command for second 1743607838: X=0, Y=0.132445
 [DEBUG] flightCtrl command sent for second 1743607838.
 1743607839: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 6.17779 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=6.177791 | Computed Velocity(X=0, Y=0.123556) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607839: X=0, Y=0.123556
+[DEBUG] Preparing to send flightCtrl command for second 1743607839: X=0, Y=0.123556
 [DEBUG] flightCtrl command sent for second 1743607839.
 1743607840: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 5.73335 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=5.733347 | Computed Velocity(X=0, Y=0.114667) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607840: X=0, Y=0.114667
+[DEBUG] Preparing to send flightCtrl command for second 1743607840: X=0, Y=0.114667
 [DEBUG] flightCtrl command sent for second 1743607840.
 1743607841: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 5.2889 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=5.288903 | Computed Velocity(X=0, Y=0.105778) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607841: X=0, Y=0.105778
+[DEBUG] Preparing to send flightCtrl command for second 1743607841: X=0, Y=0.105778
 [DEBUG] flightCtrl command sent for second 1743607841.
 1743607842: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 4.84446 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=4.844459 | Computed Velocity(X=0, Y=0.0968892) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607842: X=0, Y=0.0968892
+[DEBUG] Preparing to send flightCtrl command for second 1743607842: X=0, Y=0.0968892
 [DEBUG] flightCtrl command sent for second 1743607842.
 1743607843: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 4.40001 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=4.400015 | Computed Velocity(X=0, Y=0.0880003) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607843: X=0, Y=0.0880003
+[DEBUG] Preparing to send flightCtrl command for second 1743607843: X=0, Y=0.0880003
 [DEBUG] flightCtrl command sent for second 1743607843.
 1743607844: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 3.95557 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=3.955571 | Computed Velocity(X=0, Y=0.0791114) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607844: X=0, Y=0.0791114
+[DEBUG] Preparing to send flightCtrl command for second 1743607844: X=0, Y=0.0791114
 [DEBUG] flightCtrl command sent for second 1743607844.
 1743607845: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 3.51113 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=3.511127 | Computed Velocity(X=0, Y=0.0702225) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607845: X=0, Y=0.0702225
+[DEBUG] Preparing to send flightCtrl command for second 1743607845: X=0, Y=0.0702225
 [DEBUG] flightCtrl command sent for second 1743607845.
 1743607846: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 3.06668 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=3.066683 | Computed Velocity(X=0, Y=0.0613337) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607846: X=0, Y=0.0613337
+[DEBUG] Preparing to send flightCtrl command for second 1743607846: X=0, Y=0.0613337
 [DEBUG] flightCtrl command sent for second 1743607846.
 1743607847: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 2.62224 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=2.622239 | Computed Velocity(X=0, Y=0.0524448) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607847: X=0, Y=0.0524448
+[DEBUG] Preparing to send flightCtrl command for second 1743607847: X=0, Y=0.0524448
 [DEBUG] flightCtrl command sent for second 1743607847.
 1743607848: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 2.17779 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=2.177795 | Computed Velocity(X=0, Y=0.0435559) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607848: X=0, Y=0.0435559
+[DEBUG] Preparing to send flightCtrl command for second 1743607848: X=0, Y=0.0435559
 [DEBUG] flightCtrl command sent for second 1743607848.
 1743607849: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 1.73335 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=1.733351 | Computed Velocity(X=0, Y=0.034667) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607849: X=0, Y=0.034667
+[DEBUG] Preparing to send flightCtrl command for second 1743607849: X=0, Y=0.034667
 [DEBUG] flightCtrl command sent for second 1743607849.
 1743607850: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 1.28891 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=1.288907 | Computed Velocity(X=0, Y=0) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607850: X=0, Y=0
+[DEBUG] Preparing to send flightCtrl command for second 1743607850: X=0, Y=0
 [DEBUG] flightCtrl command sent for second 1743607850.
 1743607851: Likely WALL candidate distance: 8 meters. Target BEACON Azimuth: 0.844463 deg.
 Control Status: TargetWall=8 | CurrentWall=8.000000 | TargetAzimuth=0 | CurrentAzimuth=0.844463 | Computed Velocity(X=0, Y=0) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607851: X=0, Y=0
+[DEBUG] Preparing to send flightCtrl command for second 1743607851: X=0, Y=0
 [DEBUG] flightCtrl command sent for second 1743607851.
-2025-04-13 23:43:43,714 - WARNING - Simulator connection closed or incomplete read for client ('127.0.0.1', 39908): 0 bytes read on a total of 4 expected bytes
-2025-04-13 23:43:43,714 - INFO - Cleaning up connections for C++ client ('127.0.0.1', 39908)
+2025-04-14 09:54:45,684 - WARNING - Simulator connection closed or incomplete read for client ('127.0.0.1', 52178): 0 bytes read on a total of 4 expected bytes
+2025-04-14 09:54:45,684 - INFO - Cleaning up connections for C++ client ('127.0.0.1', 52178)
 Processing thread: Connection closed by Python bridge (EOF).
 Connection lost detected. Handling reconnect...
 Stopping Python bridge (python_bridge.py)...
-2025-04-13 23:43:43,715 - INFO - C++ writer closed for ('127.0.0.1', 39908)
-2025-04-13 23:43:43,715 - INFO - Simulator writer closed for client ('127.0.0.1', 39908)
-2025-04-13 23:43:43,716 - INFO - Finished cleanup for C++ client ('127.0.0.1', 39908)
+2025-04-14 09:54:45,684 - INFO - C++ writer closed for ('127.0.0.1', 52178)
+2025-04-14 09:54:45,685 - INFO - Simulator writer closed for client ('127.0.0.1', 52178)
+2025-04-14 09:54:45,685 - INFO - Finished cleanup for C++ client ('127.0.0.1', 52178)
 Sent SIGTERM and waited briefly for python_bridge.py.
 Resetting processing state variables (currentSecond, etc.)...
 Waiting 5 seconds before reconnect attempt 1/3...
 Proceeding to next reconnect attempt...
 --- Reconnect Attempt 1 ---
 Starting Python bridge (python_bridge.py)...
-2025-04-13 23:43:50,050 - INFO - Starting Python Bridge Server...
-2025-04-13 23:43:50,052 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
+2025-04-14 09:54:51,944 - INFO - Starting Python Bridge Server...
+2025-04-14 09:54:51,946 - INFO - Python Bridge serving for C++ clients on ('127.0.0.1', 5000)
 Python bridge potentially started.
 Connected to Python bridge.
 [Processing Thread] Attempting to re-obtain Control Authority after reconnect...
-2025-04-13 23:43:52,781 - INFO - C++ client connected: ('127.0.0.1', 38120)
-2025-04-13 23:43:52,781 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 38120)
-2025-04-13 23:43:52,783 - INFO - Successfully connected to simulator for client ('127.0.0.1', 38120)
+2025-04-14 09:54:54,747 - INFO - C++ client connected: ('127.0.0.1', 43248)
+2025-04-14 09:54:54,747 - INFO - Attempting to connect to simulator at 192.168.10.10:4035 for client ('127.0.0.1', 43248)
+2025-04-14 09:54:54,749 - INFO - Successfully connected to simulator for client ('127.0.0.1', 43248)
 [Processing Thread] Successfully re-obtained Control Authority.
+[Processing Thread] Sending initial Hover command after re-obtaining authority...
+[Processing Thread] Initial Hover command sent.
 Processing thread: Connection successful. Reading data stream...
 1743607808: Likely WALL candidate distance: 2.04 meters. Target BEACON Azimuth: 20 deg.
 Control Status: TargetWall=8 | CurrentWall=2.040000 | TargetAzimuth=0 | CurrentAzimuth=20.000000 | Computed Velocity(X=-0.8, Y=0.4) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607808: X=-0.8, Y=0.4
+[DEBUG] Preparing to send flightCtrl command for second 1743607808: X=-0.8, Y=0.4
 [DEBUG] flightCtrl command sent for second 1743607808.
 1743607809: Likely WALL candidate distance: 2.24 meters. Target BEACON Azimuth: 19.5111 deg.
 Control Status: TargetWall=8 | CurrentWall=2.240000 | TargetAzimuth=0 | CurrentAzimuth=19.511112 | Computed Velocity(X=-0.8, Y=0.390222) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607809: X=-0.8, Y=0.390222
+[DEBUG] Preparing to send flightCtrl command for second 1743607809: X=-0.8, Y=0.390222
 [DEBUG] flightCtrl command sent for second 1743607809.
 1743607810: Likely WALL candidate distance: 2.44 meters. Target BEACON Azimuth: 19.0667 deg.
 Control Status: TargetWall=8 | CurrentWall=2.440000 | TargetAzimuth=0 | CurrentAzimuth=19.066668 | Computed Velocity(X=-0.8, Y=0.381333) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607810: X=-0.8, Y=0.381333
+[DEBUG] Preparing to send flightCtrl command for second 1743607810: X=-0.8, Y=0.381333
 [DEBUG] flightCtrl command sent for second 1743607810.
 1743607811: Likely WALL candidate distance: 2.64 meters. Target BEACON Azimuth: 18.6222 deg.
 Control Status: TargetWall=8 | CurrentWall=2.639999 | TargetAzimuth=0 | CurrentAzimuth=18.622223 | Computed Velocity(X=-0.8, Y=0.372444) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607811: X=-0.8, Y=0.372444
+[DEBUG] Preparing to send flightCtrl command for second 1743607811: X=-0.8, Y=0.372444
 [DEBUG] flightCtrl command sent for second 1743607811.
 1743607812: Likely WALL candidate distance: 2.84 meters. Target BEACON Azimuth: 18.1778 deg.
 Control Status: TargetWall=8 | CurrentWall=2.839999 | TargetAzimuth=0 | CurrentAzimuth=18.177780 | Computed Velocity(X=-0.8, Y=0.363556) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607812: X=-0.8, Y=0.363556
+[DEBUG] Preparing to send flightCtrl command for second 1743607812: X=-0.8, Y=0.363556
 [DEBUG] flightCtrl command sent for second 1743607812.
 1743607813: Likely WALL candidate distance: 3.04 meters. Target BEACON Azimuth: 17.7333 deg.
 Control Status: TargetWall=8 | CurrentWall=3.039999 | TargetAzimuth=0 | CurrentAzimuth=17.733335 | Computed Velocity(X=-0.8, Y=0.354667) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607813: X=-0.8, Y=0.354667
+[DEBUG] Preparing to send flightCtrl command for second 1743607813: X=-0.8, Y=0.354667
 [DEBUG] flightCtrl command sent for second 1743607813.
 1743607814: Likely WALL candidate distance: 3.24 meters. Target BEACON Azimuth: 17.2889 deg.
 Control Status: TargetWall=8 | CurrentWall=3.239999 | TargetAzimuth=0 | CurrentAzimuth=17.288891 | Computed Velocity(X=-0.8, Y=0.345778) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607814: X=-0.8, Y=0.345778
+[DEBUG] Preparing to send flightCtrl command for second 1743607814: X=-0.8, Y=0.345778
 [DEBUG] flightCtrl command sent for second 1743607814.
 1743607815: Likely WALL candidate distance: 3.44 meters. Target BEACON Azimuth: 16.8444 deg.
 Control Status: TargetWall=8 | CurrentWall=3.439999 | TargetAzimuth=0 | CurrentAzimuth=16.844448 | Computed Velocity(X=-0.8, Y=0.336889) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607815: X=-0.8, Y=0.336889
+[DEBUG] Preparing to send flightCtrl command for second 1743607815: X=-0.8, Y=0.336889
 [DEBUG] flightCtrl command sent for second 1743607815.
+1743607816: Likely WALL candidate distance: 3.64 meters. Target BEACON Azimuth: 16.4 deg.
+Control Status: TargetWall=8 | CurrentWall=3.639998 | TargetAzimuth=0 | CurrentAzimuth=16.400003 | Computed Velocity(X=-0.8, Y=0.328) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607816: X=-0.8, Y=0.328
+[DEBUG] flightCtrl command sent for second 1743607816.
+1743607817: Likely WALL candidate distance: 3.84 meters. Target BEACON Azimuth: 15.9556 deg.
+Control Status: TargetWall=8 | CurrentWall=3.839998 | TargetAzimuth=0 | CurrentAzimuth=15.955560 | Computed Velocity(X=-0.8, Y=0.319111) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607817: X=-0.8, Y=0.319111
+[DEBUG] flightCtrl command sent for second 1743607817.
+1743607818: Likely WALL candidate distance: 4.04 meters. Target BEACON Azimuth: 15.5111 deg.
+Control Status: TargetWall=8 | CurrentWall=4.039998 | TargetAzimuth=0 | CurrentAzimuth=15.511115 | Computed Velocity(X=-0.8, Y=0.310222) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607818: X=-0.8, Y=0.310222
+[DEBUG] flightCtrl command sent for second 1743607818.
+1743607819: Likely WALL candidate distance: 4.24 meters. Target BEACON Azimuth: 15.0667 deg.
+Control Status: TargetWall=8 | CurrentWall=4.239998 | TargetAzimuth=0 | CurrentAzimuth=15.066671 | Computed Velocity(X=-0.8, Y=0.301333) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607819: X=-0.8, Y=0.301333
+[DEBUG] flightCtrl command sent for second 1743607819.
+1743607820: Likely WALL candidate distance: 4.44 meters. Target BEACON Azimuth: 14.6222 deg.
+Control Status: TargetWall=8 | CurrentWall=4.439998 | TargetAzimuth=0 | CurrentAzimuth=14.622228 | Computed Velocity(X=-0.8, Y=0.292445) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607820: X=-0.8, Y=0.292445
+[DEBUG] flightCtrl command sent for second 1743607820.
+1743607821: Likely WALL candidate distance: 4.64 meters. Target BEACON Azimuth: 14.1778 deg.
+Control Status: TargetWall=8 | CurrentWall=4.639997 | TargetAzimuth=0 | CurrentAzimuth=14.177783 | Computed Velocity(X=-0.8, Y=0.283556) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607821: X=-0.8, Y=0.283556
+[DEBUG] flightCtrl command sent for second 1743607821.
+1743607822: Likely WALL candidate distance: 4.84 meters. Target BEACON Azimuth: 13.7333 deg.
+Control Status: TargetWall=8 | CurrentWall=4.839997 | TargetAzimuth=0 | CurrentAzimuth=13.733339 | Computed Velocity(X=-0.8, Y=0.274667) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607822: X=-0.8, Y=0.274667
+[DEBUG] flightCtrl command sent for second 1743607822.
+1743607823: Likely WALL candidate distance: 5.04 meters. Target BEACON Azimuth: 13.2889 deg.
+Control Status: TargetWall=8 | CurrentWall=5.039997 | TargetAzimuth=0 | CurrentAzimuth=13.288896 | Computed Velocity(X=-0.8, Y=0.265778) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607823: X=-0.8, Y=0.265778
+[DEBUG] flightCtrl command sent for second 1743607823.
+1743607824: Likely WALL candidate distance: 5.24 meters. Target BEACON Azimuth: 12.8445 deg.
+Control Status: TargetWall=8 | CurrentWall=5.239997 | TargetAzimuth=0 | CurrentAzimuth=12.844451 | Computed Velocity(X=-0.8, Y=0.256889) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607824: X=-0.8, Y=0.256889
+[DEBUG] flightCtrl command sent for second 1743607824.
 
 
 **** MONITORING WARNING ****
@@ -332,7 +371,9 @@ NOT in expected SDK Control Mode (NAVI_SDK_CTRL / 17).
 Current Mode: P_GPS / 6. RC may have control.
 **** MONITORING WARNING ****
 
-1743607816: Likely WALL candidate distance: 3.64 meters. Target BEACON Azimuth: 16.4 deg.
-Control Status: TargetWall=8 | CurrentWall=3.639998 | TargetAzimuth=0 | CurrentAzimuth=16.400003 | Computed Velocity(X=-0.8, Y=0.328) (Body Frame)
-[DEBUG] Sending flightCtrl command for second 1743607816: X=-0.8, Y=0.328
-[DEBUG] flightCtrl command sent for second 1743607816.
+1743607825: Likely WALL candidate distance: 5.44 meters. Target BEACON Azimuth: 12.4 deg.
+Control Status: TargetWall=8 | CurrentWall=5.439997 | TargetAzimuth=0 | CurrentAzimuth=12.400007 | Computed Velocity(X=-0.8, Y=0.248) (Body Frame)
+[DEBUG] Preparing to send flightCtrl command for second 1743607825: X=-0.8, Y=0.248
+[DEBUG] flightCtrl command sent for second 1743607825.
+1743607826: Likely WALL candidate distance: 5.64 meters. Target BEACON Azimuth: 11.9556 deg.
+Control Status: TargetWall=8 | CurrentWall=5.639997 | TargetAzimuth=0 | CurrentAzimuth=11.955564 | Computed Velocity(X=-0.8, Y=0.239111) (Body Frame)
