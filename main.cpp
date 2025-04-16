@@ -1,4 +1,3 @@
-// --- Existing Includes ---
 #include <iostream>
 #include <string>
 #include <vector>
@@ -19,9 +18,6 @@
 #include <stdexcept> // For standard exceptions
 #include <array> // For std::array used in read_some buffer
 #include <ctime>  // For checking polling timestamp
-#include <mutex> // For protecting GUI log buffer
-#include <memory> // For std::unique_ptr
-#include <future> // For std::async
 
 // Include the headers that define Control flags, CtrlData, FlightController, and Vehicle
 #include "dji_control.hpp"           // Defines Control class, CtrlData, enums
@@ -30,17 +26,6 @@
 #include "dji_telemetry.hpp"         // For Telemetry types
 #include "dji_status.hpp"            // For VehicleStatus enums/constants
 #include "dji_ack.hpp"               // For ACK::getError
-
-// --- ImGui / Backend Includes ---
-#include "vendor/imgui/imgui.h" // Adjusted path
-#include "vendor/imgui/backends/imgui_impl_sdl2.h" // Adjusted path
-#include "vendor/imgui/backends/imgui_impl_opengl3.h" // Adjusted path
-#include <SDL.h>
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-#include <SDL_opengles2.h>
-#else
-#include <SDL_opengl.h>
-#endif
 
 // Define M_PI if not already defined (likely in cmath)
 #ifndef M_PI
@@ -97,39 +82,9 @@ std::atomic<bool> stopMonitoringFlag(false);
 std::thread monitoringThread;
 const int TELEMETRY_TIMEOUT_SECONDS = 5;
 
-// --- GUI Related Globals ---
-SDL_Window* window = nullptr;
-SDL_GLContext gl_context = nullptr;
-ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-std::ostringstream guiLogStream; // Buffer for GUI log messages
-std::mutex guiLogMutex;          // Mutex to protect the log stream
-std::string guiLogBuffer;        // String buffer to hold log content for ImGui
-
-// --- OSDK Related Globals (from original main) ---
-int functionTimeout = 1;
-Vehicle* vehicle = nullptr; // Owned by linuxEnvironment
-std::unique_ptr<FlightSample> flightSample = nullptr; // Use smart pointer
-std::unique_ptr<LinuxSetup> linuxEnvironment = nullptr; // Use smart pointer
-int telemetrySubscriptionFrequency = 1;
-int pkgIndex = 0;
-bool monitoringEnabled = false;
-bool enableFlightControl = true; // Assume true initially, OSDK init might change it
-
-
-// --- Helper Function to Log to GUI Buffer ---
-// Use this instead of std::cout for messages you want in the GUI log window
-void logToGui(const std::string& message) {
-    std::lock_guard<std::mutex> lock(guiLogMutex);
-    // Optional: Add timestamp or formatting
-    guiLogStream << message << std::endl;
-    // Also print to console for debugging?
-    std::cout << message << std::endl; // Keep console output for now
-}
-
-
 // Function to load preferences
 void loadPreferences() {
-    logToGui("Loading preferences..."); // Use logToGui
+    std::cout << "Loading preferences...\n";
     std::ifstream preferencesFile("preferences.txt");
     if (preferencesFile.is_open()) {
         std::string line;
@@ -143,7 +98,7 @@ void loadPreferences() {
 
             size_t equalsPos = line.find('=');
             if (equalsPos == std::string::npos) {
-                logToGui("Warning: Skipping invalid line in preferences file: " + line); // Use logToGui
+                std::cerr << "Warning: Skipping invalid line in preferences file: " << line << std::endl;
                 continue;
             }
 
@@ -151,92 +106,91 @@ void loadPreferences() {
             std::string value = line.substr(equalsPos + 1);
 
             try {
-                // --- Use logToGui for output ---
                 if (key == "target_beacon_id") {
                     TARGET_BEACON_ID = value;
-                    logToGui("  TARGET_BEACON_ID set to: " + TARGET_BEACON_ID + " (from preferences file)");
+                    std::cout << "  TARGET_BEACON_ID set to: " << TARGET_BEACON_ID << " (from preferences file)\n";
                 } else if (key == "targetdistance") {
                     targetDistance = std::stof(value);
-                    logToGui("  targetDistance set to: " + std::to_string(targetDistance) + " meters (from preferences file)");
+                    std::cout << "  targetDistance set to: " << targetDistance << " meters (from preferences file)\n";
                 } else if (key == "target_azimuth") {
                     targetAzimuth = std::stof(value);
-                    logToGui("  targetAzimuth (Initial) set to: " + std::to_string(targetAzimuth) + " degrees (from preferences file)");
+                    std::cout << "  targetAzimuth (Initial) set to: " << targetAzimuth << " degrees (from preferences file)\n";
                 } else if (key == "kp_forward") {
                     Kp_forward = std::stof(value);
-                    logToGui("  Kp_forward set to: " + std::to_string(Kp_forward) + " (from preferences file)");
+                    std::cout << "  Kp_forward set to: " << Kp_forward << " (from preferences file)\n";
                 } else if (key == "max_forward_speed") {
                     max_forward_speed = std::stof(value);
-                    logToGui("  max_forward_speed set to: " + std::to_string(max_forward_speed) + " m/s (from preferences file)");
+                    std::cout << "  max_forward_speed set to: " << max_forward_speed << " m/s (from preferences file)\n";
                 } else if (key == "forward_dead_zone") {
                     forward_dead_zone = std::stof(value);
-                    logToGui("  forward_dead_zone set to: " + std::to_string(forward_dead_zone) + " meters (from preferences file)");
+                    std::cout << "  forward_dead_zone set to: " << forward_dead_zone << " meters (from preferences file)\n";
                 } else if (key == "kp_lateral") {
                     Kp_lateral = std::stof(value);
-                    logToGui("  Kp_lateral set to: " + std::to_string(Kp_lateral) + " (from preferences file)");
+                    std::cout << "  Kp_lateral set to: " << Kp_lateral << " (from preferences file)\n";
                 } else if (key == "max_lateral_speed") {
                     max_lateral_speed = std::stof(value);
-                    logToGui("  max_lateral_speed set to: " + std::to_string(max_lateral_speed) + " m/s (from preferences file)");
+                    std::cout << "  max_lateral_speed set to: " << max_lateral_speed << " m/s (from preferences file)\n";
                 } else if (key == "azimuth_dead_zone") {
                     azimuth_dead_zone = std::stof(value);
-                    logToGui("  azimuth_dead_zone set to: " + std::to_string(azimuth_dead_zone) + " degrees (from preferences file)");
+                    std::cout << "  azimuth_dead_zone set to: " << azimuth_dead_zone << " degrees (from preferences file)\n";
                 } else if (key == "position_distance_tolerance") {
                     position_distance_tolerance = std::stof(value);
-                    logToGui("  position_distance_tolerance set to: " + std::to_string(position_distance_tolerance) + " meters (from preferences file)");
+                    std::cout << "  position_distance_tolerance set to: " << position_distance_tolerance << " meters (from preferences file)\n";
                 } else if (key == "position_azimuth_tolerance") {
                     position_azimuth_tolerance = std::stof(value);
-                    logToGui("  position_azimuth_tolerance set to: " + std::to_string(position_azimuth_tolerance) + " degrees (from preferences file)");
+                    std::cout << "  position_azimuth_tolerance set to: " << position_azimuth_tolerance << " degrees (from preferences file)\n";
                 } else if (key == "descent_speed") {
                     descent_speed = std::stof(value);
-                    logToGui("  descent_speed set to: " + std::to_string(descent_speed) + " m/s (from preferences file)");
+                    std::cout << "  descent_speed set to: " << descent_speed << " m/s (from preferences file)\n";
                 } else if (key == "min_floor_altitude") {
                     min_floor_altitude = std::stof(value);
-                    logToGui("  min_floor_altitude set to: " + std::to_string(min_floor_altitude) + " meters (from preferences file)");
+                    std::cout << "  min_floor_altitude set to: " << min_floor_altitude << " meters (from preferences file)\n";
                 } else if (key == "target_beacon_range") {
                     target_beacon_range = std::stof(value);
-                    logToGui("  target_beacon_range (Base) set to: " + std::to_string(target_beacon_range) + " meters (from preferences file)");
+                    std::cout << "  target_beacon_range (Base) set to: " << target_beacon_range << " meters (from preferences file)\n";
                 } else if (key == "beacon_range_tolerance") {
                     beacon_range_tolerance = std::stof(value);
-                    logToGui("  beacon_range_tolerance set to: " + std::to_string(beacon_range_tolerance) + " meters (from preferences file)");
+                    std::cout << "  beacon_range_tolerance set to: " << beacon_range_tolerance << " meters (from preferences file)\n";
                 } else if (key == "ascent_speed") {
                     ascent_speed = std::stof(value);
-                    logToGui("  ascent_speed set to: " + std::to_string(ascent_speed) + " m/s (from preferences file)");
+                    std::cout << "  ascent_speed set to: " << ascent_speed << " m/s (from preferences file)\n";
                 } else if (key == "complex_cycles") {
                     complex_cycles = std::stoi(value);
-                    logToGui("  complex_cycles set to: " + std::to_string(complex_cycles) + " (from preferences file)");
+                    std::cout << "  complex_cycles set to: " << complex_cycles << " (from preferences file)\n";
                 } else if (key == "lateral_step_meters") { // Renamed from azimuth_step
                     lateral_step_meters = std::stof(value);
-                    logToGui("  lateral_step_meters set to: " + std::to_string(lateral_step_meters) + " meters (from preferences file)");
+                    std::cout << "  lateral_step_meters set to: " << lateral_step_meters << " meters (from preferences file)\n";
                 }
             } catch (const std::invalid_argument& ia) {
-                 logToGui("Warning: Invalid number format for key '" + key + "' in preferences file: " + value); // Use logToGui
+                std::cerr << "Warning: Invalid number format for key '" << key << "' in preferences file: " << value << std::endl;
             } catch (const std::out_of_range& oor) {
-                 logToGui("Warning: Value out of range for key '" + key + "' in preferences file: " + value); // Use logToGui
+                std::cerr << "Warning: Value out of range for key '" << key << "' in preferences file: " << value << std::endl;
             } catch (...) {
-                  logToGui("Warning: Unknown error parsing line for key '" + key + "' in preferences file: " + value); // Use logToGui
+                 std::cerr << "Warning: Unknown error parsing line for key '" << key << "' in preferences file: " << value << std::endl;
             }
         }
         preferencesFile.close();
-        logToGui("Finished loading preferences."); // Use logToGui
+        std::cout << "Finished loading preferences.\n";
     } else {
-        logToGui("Preferences file ('preferences.txt') not found. Using default values:"); // Use logToGui
-        logToGui("  Default TARGET_BEACON_ID: " + TARGET_BEACON_ID);
-        logToGui("  Default targetDistance: " + std::to_string(targetDistance) + " meters");
-        logToGui("  Default targetAzimuth (Initial): " + std::to_string(targetAzimuth) + " degrees");
-        logToGui("  Default Kp_forward: " + std::to_string(Kp_forward));
-        logToGui("  Default max_forward_speed: " + std::to_string(max_forward_speed) + " m/s");
-        logToGui("  Default forward_dead_zone: " + std::to_string(forward_dead_zone) + " meters");
-        logToGui("  Default Kp_lateral: " + std::to_string(Kp_lateral));
-        logToGui("  Default max_lateral_speed: " + std::to_string(max_lateral_speed) + " m/s");
-        logToGui("  Default azimuth_dead_zone: " + std::to_string(azimuth_dead_zone) + " degrees");
-        logToGui("  Default position_distance_tolerance: " + std::to_string(position_distance_tolerance) + " meters");
-        logToGui("  Default position_azimuth_tolerance: " + std::to_string(position_azimuth_tolerance) + " degrees");
-        logToGui("  Default descent_speed: " + std::to_string(descent_speed) + " m/s");
-        logToGui("  Default min_floor_altitude: " + std::to_string(min_floor_altitude) + " meters");
-        logToGui("  Default target_beacon_range (Base): " + std::to_string(target_beacon_range) + " meters"); // Updated desc
-        logToGui("  Default beacon_range_tolerance: " + std::to_string(beacon_range_tolerance) + " meters");
-        logToGui("  Default ascent_speed: " + std::to_string(ascent_speed) + " m/s");
-        logToGui("  Default complex_cycles: " + std::to_string(complex_cycles));
-        logToGui("  Default lateral_step_meters: " + std::to_string(lateral_step_meters) + " meters"); // Renamed
+        std::cout << "Preferences file ('preferences.txt') not found. Using default values:\n";
+        std::cout << "  Default TARGET_BEACON_ID: " << TARGET_BEACON_ID << std::endl;
+        std::cout << "  Default targetDistance: " << targetDistance << " meters\n";
+        std::cout << "  Default targetAzimuth (Initial): " << targetAzimuth << " degrees\n";
+        std::cout << "  Default Kp_forward: " << Kp_forward << std::endl;
+        std::cout << "  Default max_forward_speed: " << max_forward_speed << " m/s\n";
+        std::cout << "  Default forward_dead_zone: " << forward_dead_zone << " meters\n";
+        std::cout << "  Default Kp_lateral: " << Kp_lateral << std::endl;
+        std::cout << "  Default max_lateral_speed: " << max_lateral_speed << " m/s\n";
+        std::cout << "  Default azimuth_dead_zone: " << azimuth_dead_zone << " degrees\n";
+        std::cout << "  Default position_distance_tolerance: " << position_distance_tolerance << " meters\n";
+        std::cout << "  Default position_azimuth_tolerance: " << position_azimuth_tolerance << " degrees\n";
+        std::cout << "  Default descent_speed: " << descent_speed << " m/s\n";
+        std::cout << "  Default min_floor_altitude: " << min_floor_altitude << " meters\n";
+        std::cout << "  Default target_beacon_range (Base): " << target_beacon_range << " meters\n"; // Updated desc
+        std::cout << "  Default beacon_range_tolerance: " << beacon_range_tolerance << " meters\n";
+        std::cout << "  Default ascent_speed: " << ascent_speed << " m/s\n";
+        std::cout << "  Default complex_cycles: " << complex_cycles << "\n";
+        std::cout << "  Default lateral_step_meters: " << lateral_step_meters << " meters\n"; // Renamed
     }
 }
 
@@ -254,41 +208,41 @@ struct RadarObject {
 
 // Display full radar object details
 void displayRadarObjects(const std::vector<RadarObject>& objects) {
-    // --- Use logToGui ---
+    // ... (remains unchanged) ...
     for (const auto& obj : objects) {
-        logToGui( "Radar Object:\n"
-                  "  Timestamp: " + obj.timestamp + "\n"
-                  "  Sensor: " + obj.sensor + "\n"
-                  "  Source: " + obj.src + "\n"
-                  "  ID: " + obj.ID + "\n"
-                  "  X: " + std::to_string(obj.X) + " Y: " + std::to_string(obj.Y) + " Z: " + std::to_string(obj.Z) + "\n"
-                  "  Xdir: " + std::to_string(obj.Xdir) + " Ydir: " + std::to_string(obj.Ydir) + " Zdir: " + std::to_string(obj.Zdir) + "\n"
-                  "  Range: " + std::to_string(obj.Range) + " Range Rate: " + std::to_string(obj.RangeRate) + "\n"
-                  "  Power: " + std::to_string(obj.Pwr) + " Azimuth: " + std::to_string(obj.Az) + " Elevation: " + std::to_string(obj.El) + "\n"
-                  "  Xsize: " + std::to_string(obj.Xsize) + " Ysize: " + std::to_string(obj.Ysize) + " Zsize: " + std::to_string(obj.Zsize) + "\n"
-                  "  Confidence: " + std::to_string(obj.Conf) + "\n"
-                  "----------------------------------------");
+        std::cout << "Radar Object:\n"
+                  << "  Timestamp: " << obj.timestamp << "\n"
+                  << "  Sensor: " << obj.sensor << "\n"
+                  << "  Source: " << obj.src << "\n"
+                  << "  ID: " << obj.ID << "\n"
+                  << "  X: " << obj.X << " Y: " << obj.Y << " Z: " << obj.Z << "\n"
+                  << "  Xdir: " << obj.Xdir << " Ydir: " << obj.Ydir << " Zdir: " << obj.Zdir << "\n"
+                  << "  Range: " << obj.Range << " Range Rate: " << obj.RangeRate << "\n"
+                  << "  Power: " << obj.Pwr << " Azimuth: " << obj.Az << " Elevation: " << obj.El << "\n"
+                  << "  Xsize: " << obj.Xsize << " Ysize: " << obj.Ysize << " Zsize: " << obj.Zsize << "\n"
+                  << "  Confidence: " << obj.Conf << "\n"
+                  << "----------------------------------------\n";
     }
 }
 
 // Display minimal radar object details
 void displayRadarObjectsMinimal(const std::vector<RadarObject>& objects) {
-    // --- Use logToGui ---
+    // ... (remains unchanged) ...
     for (const auto& obj : objects) {
-       logToGui( "Radar Object (Minimal):\n"
-                 "  Timestamp: " + obj.timestamp + "\n"
-                 "  Sensor: " + obj.sensor + "\n"
-                 "  ID: " + obj.ID + "\n"
-                 "  Range: " + std::to_string(obj.Range) + "\n"
-                 "  Azimuth: " + std::to_string(obj.Az) + "\n"
-                 "  Elevation: " + std::to_string(obj.El) + "\n"
-                 "----------------------------------------");
+        std::cout << "Radar Object (Minimal):\n"
+                  << "  Timestamp: " << obj.timestamp << "\n"
+                  << "  Sensor: " << obj.sensor << "\n"
+                  << "  ID: " << obj.ID << "\n"
+                  << "  Range: " << obj.Range << "\n"
+                  << "  Azimuth: " << obj.Az << "\n"
+                  << "  Elevation: " << obj.El << "\n"
+                  << "----------------------------------------\n";
     }
 }
 
-// --- ORIGINAL FUNCTION - DO NOT EDIT (Except logging) ---
+// --- ORIGINAL FUNCTION - DO NOT EDIT ---
 void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
-    // --- Use logToGui ---
+    // ... (remains unchanged) ...
     for (const auto& obj : objects) {
          if (stopProcessingFlag.load()) return;
         std::string ts_cleaned = obj.timestamp;
@@ -321,15 +275,15 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
                                           DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
                                           DJI::OSDK::Control::STABLE_ENABLE;
                     DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, 0, 0);
-                    logToGui( "Control Status: \n"
-                              "TargetWall=" + std::to_string(targetDistance) + " | CurrentWall=" + (hasAnonData ? std::to_string(lowestRange) : "N/A") + "\n"
-                              "TargetAzimuth=" + std::to_string(targetAzimuth) + " | CurrentAzimuth=" + (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") + "\n"
-                              "Computed Velocity(X=" + std::to_string(velocity_x) + ", Y=" + std::to_string(velocity_y) + ")" );
-                    logToGui( "--------------------------------------" );
+                    std::cout << "Control Status: \n"
+                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
+                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ")" << std::endl;
+                    std::cout << "--------------------------------------\n";
                     vehicle->control->flightCtrl(ctrlData);
                 } else if (hasAnonData || foundTargetBeacon) {
-                     logToGui( "(Flight Control Disabled or Not Available)" );
-                     logToGui( "--------------------------------------" );
+                     std::cout << "(Flight Control Disabled or Not Available)" << std::endl;
+                     std::cout << "--------------------------------------\n";
                 }
             }
             currentSecond = objSecond;
@@ -353,12 +307,12 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
          if (stopProcessingFlag.load()) return;
     }
 }
-// --- END ORIGINAL FUNCTION --
+// --- END ORIGINAL FUNCTION ---
 
 
-// --- FUNCTION FOR SIMPLE VERTICAL TEST [x] - DO NOT EDIT (Except logging) ---
+// --- FUNCTION FOR SIMPLE VERTICAL TEST [x] - DO NOT EDIT ---
 void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
-    // --- Use logToGui ---
+    // ... (remains unchanged) ...
     static bool descend_active = false;
     static bool ascent_active = false;
     static std::thread::id current_thread_id;
@@ -366,7 +320,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
         descend_active = false;
         ascent_active = false;
         current_thread_id = std::this_thread::get_id();
-        logToGui("[Simple Vert] State reset for new thread run.");
+        std::cout << "[Simple Vert] State reset for new thread run." << std::endl;
     }
 
     for (const auto& obj : objects) {
@@ -403,7 +357,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
                     bool distance_ok = hasAnonData && (std::abs(lowestRange - targetDistance) <= position_distance_tolerance);
                     bool azimuth_ok = foundTargetBeacon && !std::isnan(targetBeaconAzimuth) && (std::abs(targetBeaconAzimuth - targetAzimuth) <= position_azimuth_tolerance);
                     if (distance_ok && azimuth_ok && !descend_active && !ascent_active) {
-                        logToGui("[Simple Vert] Position confirmed (Dist: " + std::to_string(lowestRange) + ", Az: " + std::to_string(targetBeaconAzimuth) + "). Starting descent.");
+                        std::cout << "[Simple Vert] Position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl;
                         descend_active = true;
                     }
                     if (descend_active && !ascent_active) {
@@ -414,7 +368,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
                         } else {
                             velocity_z = 0.0f;
                             vertical_status = "Min Alt Reached, Starting Ascent";
-                            logToGui("[Simple Vert] Minimum altitude reached. Starting ascent phase.");
+                            std::cout << "[Simple Vert] Minimum altitude reached. Starting ascent phase." << std::endl;
                             ascent_active = true;
                             descend_active = false;
                         }
@@ -431,31 +385,31 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
                         } else {
                             velocity_z = 0.0f;
                             vertical_status = "Ascending (Beacon Lost)";
-                            logToGui("[Simple Vert] Warning: Beacon lost during ascent phase. Hovering."); // Use logToGui for cerr
+                            std::cerr << "[Simple Vert] Warning: Beacon lost during ascent phase. Hovering." << std::endl;
                         }
                     }
                     uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY |
                                           DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
                                           DJI::OSDK::Control::STABLE_ENABLE;
                     DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, 0);
-                    logToGui( "[Simple Vert] Control Status: \n"
-                              "TargetWall=" + std::to_string(targetDistance) + " | CurrentWall=" + (hasAnonData ? std::to_string(lowestRange) : "N/A") + "\n"
-                              "TargetAzimuth=" + std::to_string(targetAzimuth) + " | CurrentAzimuth=" + (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") + "\n"
-                              "TargetBeaconRange=" + std::to_string(target_beacon_range) + " | CurrentBeaconRange=" + (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") + "\n"
-                              "Computed Velocity(X=" + std::to_string(velocity_x) + ", Y=" + std::to_string(velocity_y) + ", Z=" + std::to_string(velocity_z) + ")\n"
-                              "Vertical Status: " + vertical_status + " | Current Height: " + (current_height >= 0.0f ? std::to_string(current_height) : "N/A"));
-                    logToGui("--------------------------------------");
+                    std::cout << "[Simple Vert] Control Status: \n"
+                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
+                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                              << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n"
+                              << "Vertical Status: " << vertical_status << " | Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl;
+                    std::cout << "--------------------------------------\n";
                     vehicle->control->flightCtrl(ctrlData);
                 } else if (hasAnonData || foundTargetBeacon) {
                      std::string status = "[Simple Vert] (Flight Control Disabled or Not Available)";
                      if (enableControl && vehicle && !vehicle->subscribe) {
                          status = "[Simple Vert] (Vehicle Subscribe Not Available - Cannot get height)";
                      }
-                     logToGui(status);
-                     logToGui( "TargetWall=" + std::to_string(targetDistance) + " | CurrentWall=" + (hasAnonData ? std::to_string(lowestRange) : "N/A") + "\n"
-                               "TargetAzimuth=" + std::to_string(targetAzimuth) + " | CurrentAzimuth=" + (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") + "\n"
-                               "TargetBeaconRange=" + std::to_string(target_beacon_range) + " | CurrentBeaconRange=" + (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A"));
-                     logToGui("--------------------------------------");
+                     std::cout << status << std::endl;
+                     std::cout << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
+                               << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                               << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << std::endl;
+                     std::cout << "--------------------------------------\n";
                 }
             }
             currentSecond = objSecond;
@@ -483,7 +437,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
 
 
 // --- COMPLEX VERTICAL TEST FUNCTION [c] ---
-// --- Use logToGui ---
+// Implements multi-cycle descent/ascent with lateral step (meters) and dynamic range target
 void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
 
     // State for the complex vertical test
@@ -501,7 +455,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
         current_target_lateral_offset_meters = 0.0f;
         current_target_azimuth_offset = 0.0f;
         current_thread_id = std::this_thread::get_id();
-        logToGui("[Complex Vert] State reset for new thread run.");
+        std::cout << "[Complex Vert] State reset for new thread run." << std::endl;
     }
 
     for (const auto& obj : objects) {
@@ -524,7 +478,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
         if (objSecond != currentSecond) {
             if (!currentSecond.empty() && (hasAnonData || foundTargetBeacon)) {
 
-                // --- Movement Logic --
+                // --- Movement Logic ---
                 if (enableControl && vehicle != nullptr && vehicle->control != nullptr && vehicle->subscribe != nullptr) {
                     float velocity_x = 0.0f;
                     float velocity_y = 0.0f;
@@ -551,7 +505,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                         }
                     } else if (current_phase != ComplexPhase::INITIAL_POSITIONING && current_phase != ComplexPhase::FINISHED) {
                         velocity_y = 0.0f;
-                         logToGui("[Complex Vert] Warning: Beacon lost during active phase. Halting lateral motion."); // Use logToGui
+                         std::cerr << "[Complex Vert] Warning: Beacon lost during active phase. Halting lateral motion." << std::endl;
                     }
                     // --- End Horizontal Velocity Calculation ---
 
@@ -568,7 +522,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                             velocity_z = 0.0f;
                             // Use initial azimuth dead zone for the very first alignment check
                             if (is_distance_aligned && foundTargetBeacon && !std::isnan(azimuth_error) && (std::abs(azimuth_error) <= azimuth_dead_zone)) {
-                                logToGui("[Complex Vert] Initial position confirmed (Dist: " + std::to_string(lowestRange) + ", Az: " + std::to_string(targetBeaconAzimuth) + "). Starting Cycle " + std::to_string(current_cycle + 1) + "...");
+                                std::cout << "[Complex Vert] Initial position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting Cycle " << current_cycle + 1 << " Descent." << std::endl;
                                 current_phase = ComplexPhase::DESCENDING;
                             }
                             break;
@@ -587,11 +541,11 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                     current_target_azimuth_offset = std::atan(current_target_lateral_offset_meters / targetDistance) * 180.0 / M_PI;
                                 } else {
                                     current_target_azimuth_offset = 0.0; // Or handle error appropriately
-                                    logToGui("[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth."); // Use logToGui
+                                    std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl;
                                 }
                                 runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset; // Update for logging
-                                logToGui("[Complex Vert] Min altitude reached. New Target Lateral Offset: " + std::to_string(current_target_lateral_offset_meters) + "m.");
-                                logToGui("[Complex Vert] Aligning for ascent (Calculated Target Az Total: " + std::to_string(runtime_target_azimuth) + " deg).");
+                                std::cout << "[Complex Vert] Min altitude reached. New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl;
+                                std::cout << "[Complex Vert] Aligning for ascent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl;
                                 current_phase = ComplexPhase::ALIGNING_FOR_ASCENT;
                             }
                             break;
@@ -601,7 +555,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                             velocity_z = 0.0f;
                             current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
                             if (is_azimuth_aligned) { // Check alignment against calculated runtime target azimuth
-                                logToGui("[Complex Vert] Azimuth aligned (Az: " + std::to_string(targetBeaconAzimuth) + "). Starting ascent.");
+                                std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting ascent." << std::endl;
                                 current_phase = ComplexPhase::ASCENDING;
                             }
                             // else: velocity_x and velocity_y continue to drive alignment
@@ -634,10 +588,10 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                         // Target dynamic range met
                                         velocity_z = 0.0f;
                                         current_cycle++;
-                                        logToGui("[Complex Vert] Target beacon range reached (Range: " + std::to_string(current_beacon_range) + ", Target: " + std::to_string(runtime_target_slant_range) + "). Cycle " + std::to_string(current_cycle) + " complete.");
+                                        std::cout << "[Complex Vert] Target beacon range reached (Range: " << current_beacon_range << ", Target: " << runtime_target_slant_range << "). Cycle " << current_cycle << " complete." << std::endl;
                                         if (current_cycle >= complex_cycles) {
                                             current_phase = ComplexPhase::FINISHED;
-                                            logToGui("[Complex Vert] All cycles finished.");
+                                            std::cout << "[Complex Vert] All cycles finished." << std::endl;
                                         } else {
                                             // Increment desired lateral offset for next descent
                                             current_target_lateral_offset_meters += lateral_step_meters;
@@ -646,11 +600,11 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                                 current_target_azimuth_offset = std::atan(current_target_lateral_offset_meters / targetDistance) * 180.0 / M_PI;
                                             } else {
                                                 current_target_azimuth_offset = 0.0;
-                                                logToGui("[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth."); // Use logToGui
+                                                std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl;
                                             }
                                             runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset; // Update for logging
-                                            logToGui("[Complex Vert] New Target Lateral Offset: " + std::to_string(current_target_lateral_offset_meters) + "m.");
-                                            logToGui("[Complex Vert] Aligning for next descent (Calculated Target Az Total: " + std::to_string(runtime_target_azimuth) + " deg).");
+                                            std::cout << "[Complex Vert] New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl;
+                                            std::cout << "[Complex Vert] Aligning for next descent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl;
                                             current_phase = ComplexPhase::ALIGNING_FOR_DESCENT;
                                         }
                                     }
@@ -658,7 +612,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                     // Beacon lost during ascent
                                     velocity_z = 0.0f;
                                     phase_status_str = "Ascending (Beacon Lost)";
-                                    logToGui("[Complex Vert] Warning: Beacon lost during ascent. Hovering vertically."); // Use logToGui
+                                    std::cerr << "[Complex Vert] Warning: Beacon lost during ascent. Hovering vertically." << std::endl;
                                 }
                             } // <<<--- End new scope for case variables
                             break;
@@ -668,7 +622,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                              velocity_z = 0.0f;
                              current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
                              if (is_azimuth_aligned) { // Check alignment against calculated runtime target azimuth
-                                 logToGui("[Complex Vert] Azimuth aligned (Az: " + std::to_string(targetBeaconAzimuth) + "). Starting descent.");
+                                 std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl;
                                  current_phase = ComplexPhase::DESCENDING;
                              }
                              // else: velocity_x and velocity_y continue to drive alignment
@@ -691,15 +645,15 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                     DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, 0);
 
                     // Log control status summary - Updated Azimuth/Lateral info
-                    logToGui("[Complex Vert] Control Status: \n"
-                              "Cycle: " + std::to_string(current_cycle) + "/" + std::to_string(complex_cycles) + " | Phase: " + phase_status_str + "\n"
-                              "TargetWall=" + std::to_string(targetDistance) + " | CurrentWall=" + (hasAnonData ? std::to_string(lowestRange) : "N/A") + "\n"
-                              "TargetLateralOffset=" + std::to_string(current_target_lateral_offset_meters) + "m | TargetAzTotal(calc)=" + std::to_string(runtime_target_azimuth) + "deg | CurrentAz=" + (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") + "\n"
-                              " | AzError=" + (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") + "\n"
-                              "TargetBeaconRange(Dyn)=" + std::to_string(runtime_target_slant_range) + " | CurrentBeaconRange=" + (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") + "\n"
-                              "Computed Velocity(X=" + std::to_string(velocity_x) + ", Y=" + std::to_string(velocity_y) + ", Z=" + std::to_string(velocity_z) + ")\n"
-                              "Current Height: " + (current_height >= 0.0f ? std::to_string(current_height) : "N/A"));
-                    logToGui("--------------------------------------");
+                    std::cout << "[Complex Vert] Control Status: \n"
+                              << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << phase_status_str << "\n"
+                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
+                              << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A")
+                              << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n"
+                              << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n"
+                              << "Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl;
+                    std::cout << "--------------------------------------\n";
 
                     vehicle->control->flightCtrl(ctrlData);
 
@@ -709,7 +663,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                      if (enableControl && vehicle && !vehicle->subscribe) {
                          status = "[Complex Vert] (Vehicle Subscribe Not Available - Cannot get height)";
                      }
-                     logToGui(status);
+                     std::cout << status << std::endl;
                      float runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset;
                      float runtime_target_slant_range = target_beacon_range;
                       if (current_phase == ComplexPhase::ASCENDING || current_phase == ComplexPhase::ALIGNING_FOR_DESCENT) {
@@ -720,12 +674,12 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                       if(foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
                           azimuth_error = targetBeaconAzimuth - runtime_target_azimuth;
                       }
-                     logToGui( "Cycle: " + std::to_string(current_cycle) + "/" + std::to_string(complex_cycles) + " | Phase: " + std::to_string(static_cast<int>(current_phase)) + "\n" // Log phase enum value
-                               "TargetWall=" + std::to_string(targetDistance) + " | CurrentWall=" + (hasAnonData ? std::to_string(lowestRange) : "N/A") + "\n"
-                               "TargetLateralOffset=" + std::to_string(current_target_lateral_offset_meters) + "m | TargetAzTotal(calc)=" + std::to_string(runtime_target_azimuth) + "deg | CurrentAz=" + (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") + "\n"
-                               " | AzError=" + (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") + "\n"
-                               "TargetBeaconRange(Dyn)=" + std::to_string(runtime_target_slant_range) + " | CurrentBeaconRange=" + (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A"));
-                     logToGui("--------------------------------------");
+                     std::cout << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << static_cast<int>(current_phase) << "\n"
+                               << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
+                               << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A")
+                               << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n"
+                               << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << std::endl;
+                     std::cout << "--------------------------------------\n";
                 }
             }
 
@@ -758,7 +712,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
 
 // Parses JSON radar data
 std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
-    // --- Use logToGui ---
+    // ... (remains unchanged) ...
     std::vector<RadarObject> radarObjects;
     if (jsonData.empty() || jsonData == "{}") return radarObjects;
 
@@ -768,7 +722,7 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
 
         for (const auto& obj : jsonFrame["objects"]) {
             if (!obj.is_object()) {
-                logToGui("Skipping non-object item in 'objects' array."); // Use logToGui
+                std::cerr << "Skipping non-object item in 'objects' array." << std::endl;
                 continue;
             }
             RadarObject radarObj;
@@ -786,10 +740,10 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
             radarObjects.push_back(radarObj);
         }
     } catch (const json::parse_error& e) {
-        logToGui("JSON Parsing Error: " + std::string(e.what()) + " at offset " + std::to_string(e.byte) + ". Data: [" + jsonData.substr(0, 200) + "...]"); // Use logToGui
+        std::cerr << "JSON Parsing Error: " << e.what() << " at offset " << e.byte << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl;
         return {};
     } catch (const json::type_error& e) {
-        logToGui("JSON Type Error: " + std::string(e.what()) + ". Data: [" + jsonData.substr(0, 200) + "...]"); // Use logToGui
+        std::cerr << "JSON Type Error: " << e.what() << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl;
         return {};
     }
     return radarObjects;
@@ -797,27 +751,27 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
 
 // Runs the python bridge script
 void runPythonBridge(const std::string& scriptName) {
-    // --- Use logToGui ---
-    logToGui("Starting Python bridge (" + scriptName + ")...");
+    // ... (remains unchanged) ...
+    std::cout << "Starting Python bridge (" << scriptName << ")...\n";
     if (std::system(("python3 " + scriptName + " &").c_str()) != 0) {
-        logToGui("Failed to start Python bridge script '" + scriptName + "'.");
+        std::cerr << "Failed to start Python bridge script '" << scriptName << "'.\n";
     }
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    logToGui("Python bridge potentially started.");
+    std::cout << "Python bridge potentially started.\n";
 }
 
 // Stops the python bridge script
 void stopPythonBridge(const std::string& scriptName) {
-    // --- Use logToGui ---
-    logToGui("Stopping Python bridge (" + scriptName + ")...");
+    // ... (remains unchanged) ...
+    std::cout << "Stopping Python bridge (" << scriptName << ")...\n";
     std::system(("pkill -f " + scriptName).c_str()); // Ignore result
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    logToGui("Sent SIGTERM to " + scriptName + ".");
+    std::cout << "Sent SIGTERM to " << scriptName << ".\n";
 }
 
 // Connects to the python bridge via TCP
 bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& socket) {
-    // --- Use logToGui ---
+    // ... (remains unchanged) ...
     tcp::resolver resolver(io_context);
     int retries = 5;
     while (retries-- > 0) {
@@ -826,18 +780,18 @@ bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& soc
             auto endpoints = resolver.resolve("127.0.0.1", "5000");
             boost::system::error_code ec;
             boost::asio::connect(socket, endpoints, ec);
-            if (!ec) { logToGui("Connected to Python bridge."); return true; }
-            else { logToGui("Connection attempt failed: " + ec.message()); }
+            if (!ec) { std::cout << "Connected to Python bridge.\n"; return true; }
+            else { std::cerr << "Connection attempt failed: " << ec.message() << std::endl; }
         } catch (const std::exception& e) {
-            logToGui("Exception during connection attempt: " + std::string(e.what()));
+            std::cerr << "Exception during connection attempt: " << e.what() << std::endl;
         }
         if(retries > 0 && !stopProcessingFlag.load()) {
-             logToGui("Retrying connection in 2 seconds... (" + std::to_string(retries) + " attempts left)");
+             std::cout << "Retrying connection in 2 seconds... (" << retries << " attempts left)" << std::endl;
              for (int i = 0; i < 2 && !stopProcessingFlag.load(); ++i) std::this_thread::sleep_for(std::chrono::seconds(1));
-             if (stopProcessingFlag.load()) { logToGui("Stop requested during connection retry."); break; }
-        } else if (stopProcessingFlag.load()) { logToGui("Stop requested during connection retry."); break; }
+             if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; }
+        } else if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; }
     }
-     logToGui("Failed to connect to Python bridge after multiple attempts.");
+     std::cerr << "Failed to connect to Python bridge after multiple attempts." << std::endl;
      return false;
 }
 
@@ -847,7 +801,6 @@ void ReleaseJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData
 
 // Enum for processing modes
 enum class ProcessingMode {
-    NONE, // Add a none state
     WALL_FOLLOW,
     PROCESS_FULL,
     PROCESS_MINIMAL,
@@ -856,28 +809,28 @@ enum class ProcessingMode {
 };
 
 // Processing loop function - No reconnection, releases authority on exit
-void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehiclePtr, bool enableControlCmd, ProcessingMode mode) {
-    // --- Use logToGui ---
-    logToGui("Processing thread started. Bridge: " + bridgeScriptName + ", Control Enabled: " + (enableControlCmd ? "true" : "false") + ", Mode: " + std::to_string(static_cast<int>(mode)));
-    int localFunctionTimeout = 1; // Use local variable
+void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle, bool enableControlCmd, ProcessingMode mode) {
+    // ... (remains unchanged) ...
+    std::cout << "Processing thread started. Bridge: " << bridgeScriptName << ", Control Enabled: " << std::boolalpha << enableControlCmd << ", Mode: " << static_cast<int>(mode) << std::endl;
+    int functionTimeout = 1;
 
     runPythonBridge(bridgeScriptName);
     boost::asio::io_context io_context;
     tcp::socket socket(io_context);
 
     if (!connectToPythonBridge(io_context, socket)) {
-        logToGui("Processing thread: Initial connection failed. Exiting thread.");
+        std::cerr << "Processing thread: Initial connection failed. Exiting thread." << std::endl;
         stopPythonBridge(bridgeScriptName);
-        if (enableControlCmd && vehiclePtr != nullptr && vehiclePtr->control != nullptr) {
-            logToGui("[Processing Thread] Releasing control authority (initial connection fail)...");
-            ACK::ErrorCode releaseAck = vehiclePtr->control->releaseCtrlAuthority(localFunctionTimeout);
+        if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
+            std::cout << "[Processing Thread] Releasing control authority (initial connection fail)..." << std::endl;
+            ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
             if (ACK::getError(releaseAck)) ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority");
-            else logToGui("[Processing Thread] Control authority released.");
+            else std::cout << "[Processing Thread] Control authority released." << std::endl;
         }
         return; // Exit thread
     }
 
-    logToGui("Processing thread: Connection successful. Reading data stream...");
+    std::cout << "Processing thread: Connection successful. Reading data stream..." << std::endl;
     std::string received_data_buffer;
     std::array<char, 4096> read_buffer;
     bool connection_error_occurred = false;
@@ -893,8 +846,8 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
         size_t len = socket.read_some(boost::asio::buffer(read_buffer), error);
 
         if (error) { // Handle read error
-            if (error == boost::asio::error::eof) logToGui("Processing thread: Connection closed by Python bridge (EOF).");
-            else logToGui("Processing thread: Error reading from socket: " + error.message());
+            if (error == boost::asio::error::eof) std::cerr << "Processing thread: Connection closed by Python bridge (EOF)." << std::endl;
+            else std::cerr << "Processing thread: Error reading from socket: " << error.message() << std::endl;
             connection_error_occurred = true;
             break;
         }
@@ -910,10 +863,10 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
                     try {
                         auto radarObjects = parseRadarData(jsonData);
                         if (!radarObjects.empty()) {
-                            // --- Switch Case ---
+                            // --- Updated Switch Case ---
                             switch (mode) {
                                 case ProcessingMode::WALL_FOLLOW:
-                                    extractBeaconAndWallData(radarObjects, vehiclePtr, enableControlCmd);
+                                    extractBeaconAndWallData(radarObjects, vehicle, enableControlCmd);
                                     break;
                                 case ProcessingMode::PROCESS_FULL:
                                     displayRadarObjects(radarObjects);
@@ -922,19 +875,15 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
                                     displayRadarObjectsMinimal(radarObjects);
                                     break;
                                 case ProcessingMode::WALL_FOLLOW_FULL_TEST: // Simple Vertical
-                                    extractBeaconAndWallData_FullTest(radarObjects, vehiclePtr, enableControlCmd);
+                                    extractBeaconAndWallData_FullTest(radarObjects, vehicle, enableControlCmd);
                                     break;
                                 case ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL: // Complex Vertical
-                                    extractBeaconAndWallData_ComplexVertical(radarObjects, vehiclePtr, enableControlCmd);
+                                    extractBeaconAndWallData_ComplexVertical(radarObjects, vehicle, enableControlCmd);
                                     break;
-                                case ProcessingMode::NONE: // Should not happen if started correctly
-                                     logToGui("[Processing Thread] Error: ProcessingMode::NONE encountered.");
-                                     break;
-
                             }
                         }
                     } catch (const std::exception& e) {
-                         logToGui("Error processing data: " + std::string(e.what()) + "\nSnippet: [" + jsonData.substr(0, 100) + "...]");
+                         std::cerr << "Error processing data: " << e.what() << "\nSnippet: [" << jsonData.substr(0, 100) << "...]" << std::endl;
                     }
                 }
             }
@@ -945,31 +894,31 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
     }
 
     // --- Cleanup ---
-    if (stopProcessingFlag.load()) logToGui("[Processing Thread] Stop requested manually.");
-    else if (connection_error_occurred) logToGui("[Processing Thread] Exiting due to connection error.");
-    else logToGui("[Processing Thread] Data stream ended.");
+    if (stopProcessingFlag.load()) std::cout << "[Processing Thread] Stop requested manually." << std::endl;
+    else if (connection_error_occurred) std::cout << "[Processing Thread] Exiting due to connection error." << std::endl;
+    else std::cout << "[Processing Thread] Data stream ended." << std::endl;
 
     if (socket.is_open()) { socket.close(); }
     stopPythonBridge(bridgeScriptName);
 
     // Release Control Authority if enabled
-    if (enableControlCmd && vehiclePtr != nullptr && vehiclePtr->control != nullptr) {
-        logToGui("[Processing Thread] Sending final zero velocity command...");
+    if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
+        std::cout << "[Processing Thread] Sending final zero velocity command..." << std::endl;
         uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE;
         DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
-        vehiclePtr->control->flightCtrl(stopData);
+        vehicle->control->flightCtrl(stopData);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        logToGui("[Processing Thread] Releasing control authority...");
-        ACK::ErrorCode releaseAck = vehiclePtr->control->releaseCtrlAuthority(localFunctionTimeout);
+        std::cout << "[Processing Thread] Releasing control authority..." << std::endl;
+        ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
         if (ACK::getError(releaseAck)) {
              ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority (on exit)");
-             logToGui("[Processing Thread] Warning: Failed to release control authority on exit."); // Use logToGui
+             std::cerr << "[Processing Thread] Warning: Failed to release control authority on exit." << std::endl;
         } else {
-             logToGui("[Processing Thread] Control authority released.");
+             std::cout << "[Processing Thread] Control authority released." << std::endl;
         }
     }
-    logToGui("Processing thread finished."); // Use logToGui
+    std::cout << "Processing thread finished." << std::endl;
 }
 
 // Helper function to get mode name string
@@ -986,9 +935,9 @@ std::string getModeName(uint8_t mode) {
 }
 
 // Background thread function for monitoring
-void monitoringLoopFunction(Vehicle* vehiclePtr) {
-    // --- Use logToGui ---
-    logToGui("[Monitoring] Thread started.");
+void monitoringLoopFunction(Vehicle* vehicle) {
+    // ... (remains unchanged) ...
+    std::cout << "[Monitoring] Thread started." << std::endl;
     bool telemetry_timed_out = false;
     bool warned_unexpected_status = false;
     uint8_t previous_flight_status = DJI::OSDK::VehicleStatus::FlightStatus::STOPED;
@@ -998,23 +947,23 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
     const uint8_t EXPECTED_SDK_MODE = DJI::OSDK::VehicleStatus::DisplayMode::MODE_NAVI_SDK_CTRL;
 
     while (!stopMonitoringFlag.load()) {
-        if (vehiclePtr == nullptr || vehiclePtr->subscribe == nullptr) {
+        if (vehicle == nullptr || vehicle->subscribe == nullptr) {
              if (!telemetry_timed_out) {
-                 logToGui("\n**** MONITORING ERROR: Vehicle/subscribe object null. Stopping. ****\n");
+                 std::cerr << "\n**** MONITORING ERROR: Vehicle/subscribe object null. Stopping. ****\n" << std::endl;
                  telemetry_timed_out = true;
              }
              break;
         }
 
-        uint8_t current_flight_status = vehiclePtr->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_FLIGHT>();
-        uint8_t current_display_mode = vehiclePtr->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_DISPLAYMODE>();
+        uint8_t current_flight_status = vehicle->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_FLIGHT>();
+        uint8_t current_display_mode = vehicle->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_DISPLAYMODE>();
         bool valid_poll = (current_flight_status <= DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR);
 
         if (valid_poll) {
             time_t current_time = std::time(nullptr);
             last_valid_poll_time = current_time;
             if (telemetry_timed_out) {
-                 logToGui("[Monitoring] Telemetry poll recovered.");
+                 std::cout << "[Monitoring] Telemetry poll recovered." << std::endl;
                  telemetry_timed_out = false;
             }
 
@@ -1023,7 +972,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
                 if ( (previous_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR) &&
                      (current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::ON_GROUND || current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::STOPED) &&
                      !warned_unexpected_status) {
-                     logToGui("\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " + std::to_string((int)current_flight_status) + ". ****\n");
+                     std::cerr << "\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " << (int)current_flight_status << ". ****\n" << std::endl;
                      warned_unexpected_status = true;
                 }
             } else {
@@ -1035,7 +984,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
             bool is_expected_mode = (current_display_mode == EXPECTED_SDK_MODE);
             if (is_expected_mode) {
                 if (!in_sdk_control_mode) {
-                    logToGui("\n**** MONITORING INFO: Entered SDK Control Mode (" + getModeName(EXPECTED_SDK_MODE) + " / " + std::to_string((int)EXPECTED_SDK_MODE) + ") ****\n");
+                    std::cout << "\n**** MONITORING INFO: Entered SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << " / " << (int)EXPECTED_SDK_MODE << ") ****\n" << std::endl;
                     in_sdk_control_mode = true;
                     warned_not_in_sdk_mode = false;
                 }
@@ -1044,7 +993,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
                       // Check if processing thread is stopping/stopped
                       if (!stopProcessingFlag.load() && processingThread.joinable()) {
                           std::string current_mode_name = getModeName(current_display_mode);
-                          logToGui("\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" + getModeName(EXPECTED_SDK_MODE) + "). Current: " + current_mode_name + " (" + std::to_string((int)current_display_mode) + ") ****\n");
+                          std::cerr << "\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << "). Current: " << current_mode_name << " (" << (int)current_display_mode << "). RC may have control. ****\n" << std::endl;
                           warned_not_in_sdk_mode = true;
                       }
                       in_sdk_control_mode = false;
@@ -1052,7 +1001,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
             }
         } else { // Invalid poll
             if (!telemetry_timed_out) {
-                 logToGui("\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" + std::to_string((int)current_flight_status) + "). ****\n");
+                 std::cerr << "\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" << (int)current_flight_status << "). ****\n" << std::endl;
                  telemetry_timed_out = true;
             }
         }
@@ -1061,14 +1010,14 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
         time_t current_time_for_timeout_check = std::time(nullptr);
         if (last_valid_poll_time > 0 && (current_time_for_timeout_check - last_valid_poll_time > TELEMETRY_TIMEOUT_SECONDS)) {
             if (!telemetry_timed_out) {
-                logToGui("\n**** MONITORING TIMEOUT: No valid telemetry for over " + std::to_string(TELEMETRY_TIMEOUT_SECONDS) + " seconds. ****\n");
+                std::cerr << "\n**** MONITORING TIMEOUT: No valid telemetry for over " << TELEMETRY_TIMEOUT_SECONDS << " seconds. ****\n" << std::endl;
                 telemetry_timed_out = true;
             }
         } else if (last_valid_poll_time == 0) { // Check if never received first poll
              static time_t start_time = 0; if (start_time == 0) start_time = current_time_for_timeout_check;
              if (current_time_for_timeout_check - start_time > TELEMETRY_TIMEOUT_SECONDS * 2) {
                   if (!telemetry_timed_out) {
-                       logToGui("\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " + std::to_string(TELEMETRY_TIMEOUT_SECONDS * 2) + " seconds. ****\n");
+                       std::cerr << "\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " << TELEMETRY_TIMEOUT_SECONDS * 2 << " seconds. ****\n" << std::endl;
                        telemetry_timed_out = true;
                   }
              }
@@ -1076,469 +1025,63 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    logToGui("[Monitoring] Thread finished.");
+    std::cout << "[Monitoring] Thread finished." << std::endl;
 }
 
 
-// --- GUI Initialization ---
-bool initGui() {
-    // Setup SDL
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
-        logToGui("Error: SDL_Init failed: " + std::string(SDL_GetError()));
-        return false;
-    }
-
-    // Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-    // GL ES 2.0 + GLSL 100
-    const char* glsl_version = "#version 100";
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#elif defined(__APPLE__)
-    // GL 3.2 Core + GLSL 150
-    const char* glsl_version = "#version 150";
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3); // Use 3.3 for compatibility
-#else
-    // GL 3.0 + GLSL 130
-    const char* glsl_version = "#version 130";
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#endif
-
-    // Create window with graphics context
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    window = SDL_CreateWindow("RadarSim Control", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
-    if (!window) {
-        logToGui("Error: SDL_CreateWindow failed: " + std::string(SDL_GetError()));
-        SDL_Quit();
-        return false;
-    }
-    gl_context = SDL_GL_CreateContext(window);
-    if (!gl_context) {
-        logToGui("Error: SDL_GL_CreateContext failed: " + std::string(SDL_GetError()));
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return false;
-    }
-    SDL_GL_MakeCurrent(window, gl_context);
-    SDL_GL_SetSwapInterval(1); // Enable vsync
-
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-    ImGui_ImplOpenGL3_Init(glsl_version);
-
-    logToGui("GUI Initialized successfully.");
-    return true;
-}
-
-// --- GUI Cleanup ---
-void cleanupGui() {
-    // Cleanup ImGui
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    if (ImGui::GetCurrentContext()) { // Check if context exists before destroying
-        ImGui::DestroyContext();
-    }
-
-    // Cleanup SDL
-    if (gl_context) {
-       SDL_GL_DeleteContext(gl_context);
-       gl_context = nullptr;
-    }
-    if (window) {
-       SDL_DestroyWindow(window);
-       window = nullptr;
-    }
-    SDL_Quit();
-    logToGui("GUI Cleaned up.");
-}
-
-// --- Forward Declarations for Actions ---
-void startProcessing(ProcessingMode mode, bool control, const std::string& bridge = defaultPythonBridgeScript);
-void stopProcessing();
-void performTakeoff();
-void quitApplication(bool& runningFlag);
-
-
-// --- GUI Rendering Function ---
-void renderGui(bool& keepRunning) {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
-
-    // Get main viewport size and position
-    const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-    // Use 0.30f for 30% height
-    float bottom_panel_height = main_viewport->WorkSize.y * 0.30f;
-    float top_panel_height = main_viewport->WorkSize.y - bottom_panel_height;
-
-    // Define window flags for fixed panels
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
-                                    ImGuiWindowFlags_NoResize |
-                                    ImGuiWindowFlags_NoMove |
-                                    ImGuiWindowFlags_NoCollapse |
-                                    ImGuiWindowFlags_NoScrollbar | // Disable scrollbar for the window itself
-                                    ImGuiWindowFlags_NoScrollWithMouse;
-
-
-    // --- Controls Window (Top Panel) ---
-    ImGui::SetNextWindowPos(main_viewport->WorkPos);
-    ImGui::SetNextWindowSize(ImVec2(main_viewport->WorkSize.x, top_panel_height));
-    ImGui::Begin("Controls Panel", nullptr, window_flags); // Use Begin with flags
-
-    ImGui::Text("Flight Control: %s", (enableFlightControl ? "ENABLED" : "DISABLED"));
-    ImGui::Separator();
-
-    if (ImGui::Button("Monitored Takeoff") && enableFlightControl) {
-        logToGui("Takeoff button pressed.");
-        performTakeoff();
-    }
-    if (!enableFlightControl && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-         ImGui::SetTooltip("Flight control must be enabled during OSDK initialization.");
-    }
-    if (!enableFlightControl) { // Keep button disabled text separate
-        ImGui::SameLine(); ImGui::TextDisabled("(Disabled)");
-    }
-
-
-    ImGui::Separator();
-    ImGui::Text("Wall+Beacon Following:");
-    if (ImGui::Button("Start Default (W)")) {
-        logToGui("Start Default Wall Following button pressed.");
-        startProcessing(ProcessingMode::WALL_FOLLOW, enableFlightControl, defaultPythonBridgeScript);
-    }
-    if (ImGui::Button("Start TEST (H)") && enableFlightControl) {
-         logToGui("Start TEST Wall Following button pressed.");
-         startProcessing(ProcessingMode::WALL_FOLLOW, true, "python_bridge_LOCAL.py"); // Force control for test
-    }
-     if (!enableFlightControl && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { // Tooltip for disabled test button
-         ImGui::SetTooltip("Enable Flight Control during OSDK init to use TEST mode.");
-    }
-    if (!enableFlightControl) { // Keep button disabled text separate
-         ImGui::SameLine(); ImGui::TextDisabled("(TEST Disabled)");
-    }
-
-
-
-    ImGui::Separator();
-    ImGui::Text("Vertical Tests:");
-     if (ImGui::Button("Start Simple Vertical (X)") && enableFlightControl) {
-        logToGui("Start Simple Vertical Test button pressed.");
-        startProcessing(ProcessingMode::WALL_FOLLOW_FULL_TEST, enableFlightControl);
-    }
-    if (!enableFlightControl && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Flight control must be enabled during OSDK initialization.");
-    }
-    if (!enableFlightControl) { // Keep button disabled text separate
-         ImGui::SameLine(); ImGui::TextDisabled("(Disabled)");
-    }
-
-     if (ImGui::Button("Start Complex Vertical (C)") && enableFlightControl) {
-        logToGui("Start Complex Vertical Test button pressed.");
-        startProcessing(ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL, enableFlightControl);
-    }
-     if (!enableFlightControl && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Flight control must be enabled during OSDK initialization.");
-     }
-    if (!enableFlightControl) { // Keep button disabled text separate
-         ImGui::SameLine(); ImGui::TextDisabled("(Disabled)");
-    }
-
-    ImGui::Separator();
-    ImGui::Text("Radar Data Processing (No Control):");
-     if (ImGui::Button("Process Full (E)")) {
-        logToGui("Process Full Radar button pressed.");
-        startProcessing(ProcessingMode::PROCESS_FULL, false);
-     }
-     if (ImGui::Button("Process Minimal (F)")) {
-        logToGui("Process Minimal Radar button pressed.");
-        startProcessing(ProcessingMode::PROCESS_MINIMAL, false);
-     }
-
-    ImGui::Separator();
-    if (processingThread.joinable()) {
-        if (ImGui::Button("Stop Current Task")) {
-             logToGui("Stop Current Task button pressed.");
-             stopProcessing();
-        }
-    } else {
-        ImGui::TextDisabled("No task running.");
-    }
-
-
-    ImGui::Separator();
-    if (ImGui::Button("Quit (Q)")) {
-        logToGui("Quit button pressed.");
-        quitApplication(keepRunning);
-    }
-
-    ImGui::End(); // End Controls Panel
-
-
-    // --- Log Window (Bottom Panel) ---
-    ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y + top_panel_height));
-    ImGui::SetNextWindowSize(ImVec2(main_viewport->WorkSize.x, bottom_panel_height));
-    ImGui::Begin("Log Output Panel", nullptr, window_flags); // Use Begin with flags
-
-    // Update string buffer from stream safely
-    {
-        std::lock_guard<std::mutex> lock(guiLogMutex);
-        guiLogBuffer = guiLogStream.str(); // Copy stream content to string buffer
-    }
-
-    // Use c_str() for ImGui
-    ImGui::InputTextMultiline("##Log", (char*)guiLogBuffer.c_str(), guiLogBuffer.size() + 1, ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_ReadOnly);
-
-    // *** CHANGE: Use SetScrollY to force scroll to bottom ***
-    ImGui::SetScrollY(ImGui::GetScrollMaxY());
-
-
-    ImGui::End(); // End Log Output Panel
-
-
-    // --- Error Message Window (Placeholder - unchanged) ---
-    // ...
-
-
-    // Rendering
-    ImGui::Render();
-    ImGuiIO& io = ImGui::GetIO();
-    glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-    glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT);
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    SDL_GL_SwapWindow(window);
-}
-
-// --- Action Implementations ---
-
-void stopProcessing() {
-    if (processingThread.joinable()) {
-        logToGui("Signalling processing thread to stop...");
-        stopProcessingFlag.store(true);
-        try {
-             processingThread.join();
-             logToGui("Processing thread joined.");
-        } catch (const std::system_error& e) {
-             logToGui("Error joining processing thread: " + std::string(e.what()));
-        }
-        stopProcessingFlag.store(false); // Reset flag after join
-    } else {
-        // Don't log if no thread running, it's normal state
-    }
-}
-
-void startProcessing(ProcessingMode mode, bool control, const std::string& bridge) {
-    // Stop existing thread first
-    stopProcessing();
-
-    bool requiresControl = (mode == ProcessingMode::WALL_FOLLOW ||
-                            mode == ProcessingMode::WALL_FOLLOW_FULL_TEST ||
-                            mode == ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL);
-
-    bool useControlForThread = control && requiresControl && enableFlightControl;
-
-     // Specific checks for modes requiring subscribe
-    if (useControlForThread && (mode == ProcessingMode::WALL_FOLLOW_FULL_TEST || mode == ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL)) {
-         if (!vehicle || !vehicle->subscribe) {
-              logToGui("Error: Cannot start vertical test with control - OSDK subscribe interface not available.");
-              useControlForThread = false; // Cannot proceed with control
-              return; // Exit without starting thread
-         }
-    }
-
-    // Check if control is requested but not possible
-    if (control && requiresControl && !useControlForThread) {
-         logToGui("Warning: Task requires control, but flight control is disabled or OSDK not ready. Starting without control.");
-         if (mode == ProcessingMode::WALL_FOLLOW_FULL_TEST || mode == ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL) {
-             logToGui("Error: Vertical tests cannot run without flight control. Task aborted.");
-             return; // Abort vertical tests if control isn't truly available
-         }
-    }
-
-
-    logToGui("Attempting to start processing task (Mode: " + std::to_string(static_cast<int>(mode)) + ", Control: " + (useControlForThread ? "Yes" : "No") + ", Bridge: " + bridge + ")");
-
-    if (useControlForThread) {
-         if (!vehicle || !vehicle->control) {
-            logToGui("Error: Cannot obtain control authority - OSDK vehicle/control not available.");
-            return; // Don't start thread
-         }
-        logToGui("Attempting to obtain Control Authority...");
-        ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
-        if (ACK::getError(ctrlAuthAck)) {
-            ACK::getErrorCodeMessage(ctrlAuthAck, "startProcessing obtainCtrlAuthority");
-            logToGui("Failed to obtain control authority. Cannot start task with control.");
-            return; // Don't start the thread
-        } else {
-            logToGui("Obtained Control Authority.");
-        }
-    }
-
-    // Start the new thread
-    stopProcessingFlag.store(false); // Ensure flag is false before starting
-    processingThread = std::thread(processingLoopFunction, bridge, vehicle, useControlForThread, mode);
-}
-
-void performTakeoff() {
-     if (!enableFlightControl) {
-        logToGui("Takeoff failed: Flight control is disabled.");
-        return;
-     }
-     if (!vehicle || !vehicle->control) {
-         logToGui("Takeoff failed: OSDK vehicle/control not initialized.");
-         return;
-     }
-     // Create FlightSample if it hasn't been created yet
-     if (!flightSample) {
-         logToGui("Creating FlightSample instance...");
-         // Use C++11 way to create unique_ptr
-         flightSample = std::unique_ptr<FlightSample>(new FlightSample(vehicle));
-     }
-
-    logToGui("Attempting to obtain Control Authority for Takeoff...");
-    ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
-    if (ACK::getError(ctrlAuthAck)) {
-         ACK::getErrorCodeMessage(ctrlAuthAck, "Takeoff obtainCtrlAuthority");
-         logToGui("Failed to obtain control authority for takeoff.");
-    } else {
-         logToGui("Obtained Control Authority for Takeoff. Executing monitored takeoff...");
-         // Run takeoff in a separate thread to avoid blocking GUI
-         auto takeoffFuture = std::async(std::launch::async, [&]() {
-             flightSample->monitoredTakeoff();
-             logToGui("Monitored takeoff thread finished.");
-             // Optionally release authority here
-             // vehicle->control->releaseCtrlAuthority(functionTimeout);
-         });
-         logToGui("Monitored takeoff command issued (running in background).");
-    }
-}
-
-void stopMonitoring() {
-     if (monitoringThread.joinable()) {
-        logToGui("Signalling monitoring thread to stop...");
-        stopMonitoringFlag.store(true);
-         try {
-             monitoringThread.join();
-             logToGui("Monitoring thread joined.");
-         } catch (const std::system_error& e) {
-             logToGui("Error joining monitoring thread: " + std::string(e.what()));
-         }
-        stopMonitoringFlag.store(false); // Reset flag
-        monitoringEnabled = false; // Update status
-    }
-}
-
-
-void quitApplication(bool& runningFlag) {
-    logToGui("Initiating shutdown sequence...");
-
-
-    // Stop background threads
-    stopProcessing();
-    stopMonitoring();
-
-    // OSDK Cleanup
-    if (monitoringEnabled && vehicle && vehicle->subscribe) {
-        logToGui("Unsubscribing from telemetry...");
-        ACK::ErrorCode statusAck = vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
-        if(ACK::getError(statusAck)) {
-            ACK::getErrorCodeMessage(statusAck, __func__);
-            logToGui("Warning: Failed to unsubscribe from telemetry package " + std::to_string(pkgIndex) + ".");
-        } else {
-            logToGui("Telemetry unsubscribed.");
-        }
-    }
-
-    if (enableFlightControl && vehicle && vehicle->control) {
-        logToGui("Sending Zero Velocity command before final release...");
-        uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE;
-        DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
-        vehicle->control->flightCtrl(stopData);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        logToGui("Releasing Control Authority on Quit...");
-        ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
-         if (ACK::getError(releaseAck)) {
-             ACK::getErrorCodeMessage(releaseAck, "Quit releaseCtrlAuthority");
-             logToGui("Warning: Failed to release control authority on quit.");
-         } else {
-             logToGui("Control Authority Released on Quit.");
-         }
-    }
-
-     // Reset smart pointers - handles deletion
-     flightSample.reset();
-     linuxEnvironment.reset();
-     vehicle = nullptr;
-
-     logToGui("OSDK resources released.");
-
-     runningFlag = false; // Signal the main loop to exit AFTER cleanup
-
-}
-
-
-// --- Main Function ---
 int main(int argc, char** argv) {
+    // ... (remains unchanged until Process Command section) ...
     loadPreferences(); // Load preferences first
 
-    // --- OSDK Initialization (Attempt) ---
-    logToGui("Initializing DJI OSDK...");
-    try {
-        // Use C++11 way to create unique_ptr
-        linuxEnvironment = std::unique_ptr<LinuxSetup>(new LinuxSetup(argc, argv));
-        vehicle = linuxEnvironment->getVehicle();
+    // --- Mode Selection Removed - Hardcoded to Live Mode ---
+    bool enableFlightControl = true;
+    // defaultPythonBridgeScript is already set globally
 
+    std::cout << "Starting in Live Mode. Flight control enabled. Default bridge: " << defaultPythonBridgeScript << "\n";
+
+
+    // --- OSDK Initialization ---
+    int functionTimeout = 1;
+    Vehicle* vehicle = nullptr;
+    FlightSample* flightSample = nullptr;
+    LinuxSetup* linuxEnvironment = nullptr;
+    int telemetrySubscriptionFrequency = 1;
+    int pkgIndex = 0;
+    bool monitoringEnabled = false;
+
+    if (enableFlightControl) { // This will always be true now unless OSDK init fails
+        std::cout << "Initializing DJI OSDK...\n";
+        linuxEnvironment = new LinuxSetup(argc, argv);
+        vehicle = linuxEnvironment->getVehicle();
         if (vehicle == nullptr || vehicle->control == nullptr || vehicle->subscribe == nullptr) {
-            logToGui("ERROR: Vehicle not initialized or interfaces unavailable. Disabling flight control.");
-             linuxEnvironment.reset();
+            std::cerr << "ERROR: Vehicle not initialized or interfaces unavailable. Disabling flight control." << std::endl;
+             if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
              vehicle = nullptr;
-             enableFlightControl = false;
+             enableFlightControl = false; // Fallback in case of init error
+             std::cout << "OSDK Initialization Failed. Flight control disabled." << std::endl;
         } else { // OSDK Init seems OK
-            logToGui("Attempting initial Control Authority check...");
+            std::cout << "Attempting to obtain Control Authority...\n";
             ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
             if (ACK::getError(ctrlAuthAck)) {
                  ACK::getErrorCodeMessage(ctrlAuthAck, __func__);
-                 logToGui("Failed initial control authority check. Disabling flight control.");
-                 linuxEnvironment.reset();
+                 std::cerr << "Failed to obtain control authority. Disabling flight control." << std::endl;
+                 if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
                  vehicle = nullptr;
-                 enableFlightControl = false;
+                 enableFlightControl = false; // Fallback
+                 std::cout << "Obtaining Control Authority Failed. Flight control disabled." << std::endl;
             } else { // Authority Obtained
-                 logToGui("Initial Control Authority check successful.");
-                 // Use C++11 way to create unique_ptr
-                 flightSample = std::unique_ptr<FlightSample>(new FlightSample(vehicle));
-                 logToGui("FlightSample instance created.");
-                 logToGui("OSDK Initialized successfully.");
+                 std::cout << "Obtained Control Authority." << std::endl;
+                 flightSample = new FlightSample(vehicle);
+                 std::cout << "OSDK Initialized and Flight Sample created." << std::endl;
 
-                 // --- Setup Telemetry Subscription for Monitoring ---
-                 logToGui("Setting up Telemetry Subscription for Monitoring...");
+                 // --- Setup Telemetry Subscription for Monitoring (ADDED HEIGHT) ---
+                 std::cout << "Setting up Telemetry Subscription for Monitoring..." << std::endl;
                  ACK::ErrorCode subscribeAck = vehicle->subscribe->verify(functionTimeout);
                  if (ACK::getError(subscribeAck)) {
                       ACK::getErrorCodeMessage(subscribeAck, __func__);
-                      logToGui("Error verifying subscription package list. Monitoring will be disabled.");
+                      std::cerr << "Error verifying subscription package list. Monitoring will be disabled." << std::endl;
                  } else {
+                      // --- ADDED Telemetry::TOPIC_HEIGHT_FUSION ---
                       Telemetry::TopicName topicList[] = {
                           Telemetry::TOPIC_STATUS_FLIGHT,
                           Telemetry::TOPIC_STATUS_DISPLAYMODE,
@@ -1549,96 +1092,230 @@ int main(int argc, char** argv) {
                                                                                        false, telemetrySubscriptionFrequency);
 
                       if (topicStatus) {
-                            logToGui("Successfully initialized package " + std::to_string(pkgIndex) + " with Flight Status, Display Mode, and Height topics.");
+                            std::cout << "Successfully initialized package " << pkgIndex << " with Flight Status, Display Mode, and Height topics." << std::endl; // Updated msg
                             ACK::ErrorCode startAck = vehicle->subscribe->startPackage(pkgIndex, functionTimeout);
                             if (ACK::getError(startAck)) {
                                  ACK::getErrorCodeMessage(startAck, "startPackage");
-                                 logToGui("Error starting subscription package " + std::to_string(pkgIndex) + ". Monitoring will be disabled.");
-                                 vehicle->subscribe->removePackage(pkgIndex, functionTimeout); // Attempt cleanup
+                                 std::cerr << "Error starting subscription package " << pkgIndex << ". Monitoring will be disabled." << std::endl;
+                                 vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
                             } else {
-                                 logToGui("Successfully started package " + std::to_string(pkgIndex) + ".");
-                                 logToGui("Starting monitoring thread...");
+                                 std::cout << "Successfully started package " << pkgIndex << "." << std::endl;
+                                 std::cout << "Starting monitoring thread..." << std::endl;
                                  stopMonitoringFlag.store(false);
                                  monitoringThread = std::thread(monitoringLoopFunction, vehicle);
                                  monitoringEnabled = true;
-                                 logToGui("[Main] Monitoring thread launched.");
+                                 std::cout << "[Main] Monitoring thread launched." << std::endl;
                             }
                       } else {
-                           logToGui("Error initializing package " + std::to_string(pkgIndex) + " from topic list. Monitoring will be disabled.");
+                           std::cerr << "Error initializing package " << pkgIndex << " from topic list. Monitoring will be disabled." << std::endl;
                       }
                  }
-                 // Initial authority obtained, release it now. Tasks will re-obtain if needed.
-                 logToGui("Releasing initial control authority (tasks will re-obtain)...");
-                 vehicle->control->releaseCtrlAuthority(functionTimeout); // Ignore result for now
             }
         }
-    } catch (const std::exception& e) {
-         logToGui("EXCEPTION during OSDK Initialization: " + std::string(e.what()));
-         linuxEnvironment.reset();
-         vehicle = nullptr;
-         enableFlightControl = false;
-    } catch (...) {
-         logToGui("UNKNOWN EXCEPTION during OSDK Initialization.");
-         linuxEnvironment.reset();
-         vehicle = nullptr;
-         enableFlightControl = false;
     }
 
-    logToGui("INFO: Flight control is " + std::string(enableFlightControl ? "ENABLED" : "DISABLED"));
+    std::cout << "INFO: Flight control is " << (enableFlightControl ? "ENABLED" : "DISABLED") << ". Proceeding to main menu.\n"; // Keep this info line
 
-    // --- Initialize GUI ---
-    if (!initGui()) {
-        logToGui("GUI Initialization Failed. Exiting.");
-        bool temp = false;
-        quitApplication(temp);
-        return 1;
-    }
-
-
-    // --- Main GUI Loop ---
+    // --- Main Command Loop ---
     bool keepRunning = true;
     while (keepRunning) {
-        // Poll and handle events
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT) {
-                quitApplication(keepRunning);
+        // --- Updated Menu Display ---
+        std::cout << "\n--- Main Menu ---\n"
+                  << (enableFlightControl ? "| [t] Monitored Takeoff                     |\n| [w] Start Wall+Beacon Following (Default) |\n| [h] Start Wall+Beacon Following (TEST)    |\n| [x] simple vertical test                  |\n| [c] complex vertical test                 |\n"
+                                          : "| [t] Takeoff (DISABLED)                    |\n| [w] Wall/Beacon Following (No Control)    |\n| [h] Wall/Beacon Following (No Control)    |\n| [x] simple vertical test (No Control)     |\n| [c] complex vertical test (No Control)    |\n")
+                  << "| [e] Process Full Radar (No Control)       |\n"
+                  << "| [f] Process Minimal Radar (No Control)    |\n"
+                  << "| [q] Quit                                  |\n"
+                  << "---------------------------------------------\n"
+                  << "Enter command: ";
+
+        std::string lineInput; char inputChar = 0;
+        if (std::getline(std::cin, lineInput)) { if (!lineInput.empty()) inputChar = lineInput[0]; }
+        else { inputChar = 'q'; if (std::cin.eof()) std::cout << "\nEOF detected. "; std::cout << "Exiting." << std::endl; }
+
+        // Stop processing thread if starting new task ('w','e','h','f','x','c') or quitting ('q')
+         if (strchr("wehfx", inputChar) != nullptr || inputChar == 'c' || inputChar == 'q') { // Added 'c'
+             if (processingThread.joinable()) {
+                 std::cout << "Signalling processing thread to stop..." << std::endl;
+                 stopProcessingFlag.store(true); processingThread.join();
+                 std::cout << "Processing thread finished." << std::endl;
+                 stopProcessingFlag.store(false);
+             }
+         }
+         // Stop monitoring thread on quit
+         if (inputChar == 'q' && monitoringThread.joinable()) {
+             std::cout << "Signalling monitoring thread to stop..." << std::endl;
+             stopMonitoringFlag.store(true); monitoringThread.join();
+             std::cout << "Monitoring thread finished." << std::endl;
+             stopMonitoringFlag.store(false); monitoringEnabled = false;
+         }
+
+        // --- Process Command ---
+        switch (inputChar) {
+            case 't': // Takeoff
+                // ... (remains unchanged) ...
+                if (enableFlightControl && flightSample && vehicle && vehicle->control) {
+                    std::cout << "Attempting to obtain Control Authority for Takeoff...\n";
+                    ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                    if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Takeoff obtainCtrlAuthority");
+                         std::cerr << "Failed to obtain control authority for takeoff." << std::endl;
+                         break;
+                    } else {
+                         std::cout << "Obtained Control Authority for Takeoff." << std::endl;
+                         flightSample->monitoredTakeoff();
+                    }
+                } else {
+                     std::cout << "Flight control not enabled or available." << std::endl;
+                }
+                break;
+
+             case 'w': // Wall Following (Default)
+             case 'h': { // Wall Following (TEST)
+                // ... (remains unchanged) ...
+                 std::string bridge = (inputChar == 'w') ? defaultPythonBridgeScript : "python_bridge_LOCAL.py";
+                 bool useControl = (inputChar == 'w') ? enableFlightControl : true;
+                 if (inputChar == 'h' && !enableFlightControl) { std::cout << "Error: Flight control must be enabled for TEST control.\n"; break; }
+
+                 std::cout << "Starting Wall+Beacon Following using bridge: " << bridge << "\n";
+                 if (useControl && vehicle && vehicle->control) {
+                     std::cout << "Attempting to obtain Control Authority for Wall Following...\n";
+                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                     if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Wall Following obtainCtrlAuthority");
+                         std::cerr << "Failed to obtain control authority. Cannot start with control.\n";
+                         break;
+                     } else {
+                         std::cout << "Obtained Control Authority for Wall Following." << std::endl;
+                     }
+                 } else if (useControl) {
+                      std::cerr << "Error: Cannot start with control as OSDK is not properly initialized.\n";
+                      break;
+                 }
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, bridge, vehicle, useControl, ProcessingMode::WALL_FOLLOW);
+                 break;
+             }
+             case 'x': { // Simple Vertical Test
+                // ... (remains unchanged) ...
+                 std::cout << "Starting Simple Vertical Test using default bridge: " << defaultPythonBridgeScript << "\n";
+                 if (enableFlightControl && vehicle && vehicle->control && vehicle->subscribe) {
+                     std::cout << "Attempting to obtain Control Authority for Simple Vertical Test...\n";
+                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                     if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Simple Vertical Test obtainCtrlAuthority");
+                         std::cerr << "Failed to obtain control authority. Cannot start Simple Vertical Test with control.\n";
+                         break;
+                     } else {
+                         std::cout << "Obtained Control Authority for Simple Vertical Test." << std::endl;
+                     }
+                 } else if (enableFlightControl) {
+                     std::string reason = (!vehicle || !vehicle->control) ? "OSDK control" : "OSDK subscribe";
+                     std::cerr << "Error: Cannot start Simple Vertical Test with control as " << reason << " is not properly initialized.\n";
+                     break;
+                 }
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW_FULL_TEST);
+                 break;
             }
-            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window)) {
-                quitApplication(keepRunning);
+             case 'c': { // Complex Vertical Test
+                // ... (remains unchanged) ...
+                 std::cout << "Starting Complex Vertical Test using default bridge: " << defaultPythonBridgeScript << "\n";
+                 if (enableFlightControl && vehicle && vehicle->control && vehicle->subscribe) {
+                     std::cout << "Attempting to obtain Control Authority for Complex Vertical Test...\n";
+                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                     if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Complex Vertical Test obtainCtrlAuthority");
+                         std::cerr << "Failed to obtain control authority. Cannot start Complex Vertical Test with control.\n";
+                         break;
+                     } else {
+                         std::cout << "Obtained Control Authority for Complex Vertical Test." << std::endl;
+                     }
+                 } else if (enableFlightControl) {
+                     std::string reason = (!vehicle || !vehicle->control) ? "OSDK control" : "OSDK subscribe";
+                     std::cerr << "Error: Cannot start Complex Vertical Test with control as " << reason << " is not properly initialized.\n";
+                     break;
+                 }
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL);
+                 break;
             }
+             case 'e': // Process Full
+             case 'f': { // Process Minimal
+                // ... (remains unchanged) ...
+                 ProcessingMode procMode = (inputChar == 'e') ? ProcessingMode::PROCESS_FULL : ProcessingMode::PROCESS_MINIMAL;
+                 std::cout << "Starting Radar Data processing (No Control) using bridge: " << defaultPythonBridgeScript << "\n";
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, procMode);
+                 break;
+             }
+
+            case 'q': { // Quit
+                // ... (remains unchanged) ...
+                std::cout << "Exiting..." << std::endl;
+                // Stop threads handled above
+
+                if (monitoringEnabled && vehicle && vehicle->subscribe) {
+                    std::cout << "Unsubscribing from telemetry..." << std::endl;
+                    ACK::ErrorCode statusAck = vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
+                    if(ACK::getError(statusAck)) {
+                        ACK::getErrorCodeMessage(statusAck, __func__);
+                        std::cerr << "Warning: Failed to unsubscribe from telemetry package " << pkgIndex << "." << std::endl;
+                    } else {
+                        std::cout << "Telemetry unsubscribed." << std::endl;
+                    }
+                }
+
+                if (enableFlightControl && vehicle && vehicle->control) {
+                    std::cout << "Sending Zero Velocity command before final release..." << std::endl;
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE;
+                    DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
+                    vehicle->control->flightCtrl(stopData);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                    std::cout << "Releasing Control Authority on Quit...\n";
+                    ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
+                     if (ACK::getError(releaseAck)) {
+                         ACK::getErrorCodeMessage(releaseAck, "Quit releaseCtrlAuthority");
+                         std::cerr << "Warning: Failed to release control authority on quit." << std::endl;
+                     } else {
+                         std::cout << "Control Authority Released on Quit." << std::endl;
+                     }
+                }
+                 if (linuxEnvironment) {
+                    delete linuxEnvironment; linuxEnvironment = nullptr;
+                 }
+                 if (flightSample) flightSample = nullptr;
+                 vehicle = nullptr;
+
+                keepRunning = false;
+                break;
+            }
+            case 0: break; // Enter key pressed
+            default: std::cout << "Invalid input." << std::endl; break;
         }
-
-        // If keepRunning was set to false by quitApplication, break the loop
-        if (!keepRunning) {
-            break;
-        }
-
-        // Render the GUI frame
-        renderGui(keepRunning);
-
-        // Small sleep
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     } // End main loop
 
-
-    // --- Cleanup ---
-    logToGui("Exiting main loop...");
-    // Ensure threads stopped (should be handled by quitApplication if loop exited normally)
-    stopProcessing();
-    stopMonitoring();
-
-    cleanupGui();
-
-    // OSDK resources should have been cleaned by quitApplication. Final check.
-     if (linuxEnvironment) {
-         logToGui("Warning: OSDK linuxEnvironment still exists at final cleanup. Forcing reset.");
-         linuxEnvironment.reset();
-         vehicle = nullptr;
-         flightSample.reset();
+    // Final check to join threads if loop exited unexpectedly
+    // ... (remains unchanged) ...
+     if (processingThread.joinable()) {
+         std::cerr << "Warning: Main loop exited unexpectedly, ensuring processing thread is stopped." << std::endl;
+         stopProcessingFlag.store(true);
+         try { processingThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining processing thread: " << e.what() << std::endl; }
+     }
+     if (monitoringThread.joinable()) {
+         std::cerr << "Warning: Main loop exited unexpectedly, ensuring monitoring thread is stopped." << std::endl;
+         stopMonitoringFlag.store(true);
+          try { monitoringThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining monitoring thread: " << e.what() << std::endl; }
      }
 
-    logToGui("Program terminated.");
+      if (linuxEnvironment) {
+         delete linuxEnvironment;
+         linuxEnvironment = nullptr;
+         vehicle = nullptr;
+         flightSample = nullptr;
+      }
+
+    std::cout << "Program terminated." << std::endl;
     return 0;
 }
