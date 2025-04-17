@@ -167,36 +167,48 @@ private:
 // --- Configurable Parameters (with defaults) ---
 std::string TARGET_BEACON_ID = "BEACON-TX-ID:00005555";
 float targetDistance = 8.0f;        // Target distance from the wall (meters)
-float targetAzimuth = 0.0f;         // *Initial* target azimuth relative to the beacon (degrees)
+float targetAzimuth = 0.0f;         // *Initial* target azimuth relative to the beacon (degrees) - Used in default wall follow & combined modes
 // Forward Control (X-velocity)
 float Kp_forward = 0.5;             // Proportional gain for forward movement
 float max_forward_speed = 0.8;      // Max speed towards/away from the wall
 float forward_dead_zone = 0.2;      // Dead zone for forward movement (meters)
-// Lateral Control (Y-velocity)
+// Lateral Control (Y-velocity) - Used in default wall follow & combined modes
 float Kp_lateral = 0.02;            // Proportional gain for lateral movement
 float max_lateral_speed = 0.5;      // Max speed sideways
 float azimuth_dead_zone = 1.5;      // Dead zone for *initial* lateral movement (degrees)
-// Descent/Ascent Parameters
-float position_distance_tolerance = 0.3; // Allowed distance error for starting descent (meters)
-float position_azimuth_tolerance = 2.0;  // Allowed azimuth error for starting descent & switching phases (degrees)
-float descent_speed = 0.3;               // Speed for descending (m/s, positive value)
-float min_floor_altitude = 0.5;          // Minimum altitude to maintain (meters AGL)
-float target_beacon_range = 3.0;         // *Base* target range from beacon for ascent phase (meters, at zero azimuth offset)
-float beacon_range_tolerance = 0.2;      // Allowed error for final beacon range (meters)
-float ascent_speed = 0.3;                // Speed for ascending (m/s, positive value)
-// Complex Vertical Test Parameters
-int complex_cycles = 3;                  // Number of descent/ascent cycles
-float lateral_step_meters = 1.0;         // Desired lateral displacement per alignment step (meters)
+// Yaw Control (Yaw Rate) - Used for Yaw Lock & combined modes
+float Kp_yaw = 0.03;                // Proportional gain for yaw rate control
+float max_yaw_rate = 15.0;          // Max yaw rate (degrees/second)
+float yaw_dead_zone = 1.0;          // Dead zone for yaw control (degrees)
+// Vertical Cycling Parameters - NEW
+float vertical_cycle_target_agl = 2.0; // Target height AGL for descent phase (meters)
+int vertical_cycle_count = 3;          // Number of down-up cycles
+float vertical_cycle_agl_tolerance = 0.15; // Allowed error for reaching target AGL (meters)
+// Reused parameters for vertical cycling:
+// - ascent_speed
+// - descent_speed
+// - target_beacon_range (target range when ascending back up)
+// - beacon_range_tolerance (tolerance for being level with beacon)
+float ascent_speed = 0.3;           // Speed for ascending (m/s, positive value) - Reused
+float descent_speed = 0.3;          // Speed for descending (m/s, positive value) - Reused
+float target_beacon_range = 3.0;    // Target range from beacon when ascending (meters) - Reused
+float beacon_range_tolerance = 0.2; // Allowed error for beacon range checks (meters) - Reused
 // --- End Configurable Parameters ---
 
 
 // Persistent variables for tracking the current second and wall/beacon candidate data
 std::string currentSecond = "";
-float lowestRange = std::numeric_limits<float>::max(); // Closest wall candidate range
-bool hasAnonData = false;
-float targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN(); // Sensed beacon azimuth
-float current_beacon_range = std::numeric_limits<float>::quiet_NaN(); // Sensed beacon range
-bool foundTargetBeacon = false;
+// General Wall/Beacon Data (Used by multiple modes)
+float lowestRange = std::numeric_limits<float>::max(); // Closest wall candidate range (any sensor) - Used by 'w'
+bool hasAnonData = false;                              // Flag if any anon data seen this second - Used by 'w'
+float targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN(); // Sensed beacon azimuth - Used by 'w', 'b'
+float current_beacon_range = std::numeric_limits<float>::quiet_NaN(); // Sensed beacon range - Used by 'w', 'b', and vertical cycle modes
+bool foundTargetBeacon = false;                        // Flag if target beacon seen this second - Used by 'w', 'b', and vertical cycle modes
+// Specific Data for Yaw Lock & Combined Modes
+float closestHorizAnonRange = std::numeric_limits<float>::max(); // Range of closest HORIZONTAL anon detection - Used by 'y', 'b'
+float closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN(); // Azimuth of closest HORIZONTAL anon detection - Used by 'y', 'b'
+bool hasHorizAnonData = false;                         // Flag if horizontal anon data seen this second - Used by 'y', 'b'
+
 
 // Global variable for default Python bridge script (Hardcoded)
 std::string defaultPythonBridgeScript = "python_bridge.py";
@@ -261,34 +273,39 @@ void loadPreferences() {
                 } else if (key == "azimuth_dead_zone") {
                     azimuth_dead_zone = std::stof(value);
                     std::cout << "  azimuth_dead_zone set to: " << azimuth_dead_zone << " degrees (from preferences file)" << std::endl; // Logged
-                } else if (key == "position_distance_tolerance") {
-                    position_distance_tolerance = std::stof(value);
-                    std::cout << "  position_distance_tolerance set to: " << position_distance_tolerance << " meters (from preferences file)" << std::endl; // Logged
-                } else if (key == "position_azimuth_tolerance") {
-                    position_azimuth_tolerance = std::stof(value);
-                    std::cout << "  position_azimuth_tolerance set to: " << position_azimuth_tolerance << " degrees (from preferences file)" << std::endl; // Logged
-                } else if (key == "descent_speed") {
-                    descent_speed = std::stof(value);
-                    std::cout << "  descent_speed set to: " << descent_speed << " m/s (from preferences file)" << std::endl; // Logged
-                } else if (key == "min_floor_altitude") {
-                    min_floor_altitude = std::stof(value);
-                    std::cout << "  min_floor_altitude set to: " << min_floor_altitude << " meters (from preferences file)" << std::endl; // Logged
-                } else if (key == "target_beacon_range") {
-                    target_beacon_range = std::stof(value);
-                    std::cout << "  target_beacon_range (Base) set to: " << target_beacon_range << " meters (from preferences file)" << std::endl; // Logged
-                } else if (key == "beacon_range_tolerance") {
-                    beacon_range_tolerance = std::stof(value);
-                    std::cout << "  beacon_range_tolerance set to: " << beacon_range_tolerance << " meters (from preferences file)" << std::endl; // Logged
-                } else if (key == "ascent_speed") {
+                } else if (key == "kp_yaw") { // Yaw Lock Param
+                    Kp_yaw = std::stof(value);
+                    std::cout << "  Kp_yaw set to: " << Kp_yaw << " (from preferences file)" << std::endl; // Logged
+                } else if (key == "max_yaw_rate") { // Yaw Lock Param
+                    max_yaw_rate = std::stof(value);
+                    std::cout << "  max_yaw_rate set to: " << max_yaw_rate << " deg/s (from preferences file)" << std::endl; // Logged
+                } else if (key == "yaw_dead_zone") { // Yaw Lock Param
+                    yaw_dead_zone = std::stof(value);
+                    std::cout << "  yaw_dead_zone set to: " << yaw_dead_zone << " degrees (from preferences file)" << std::endl; // Logged
+                } else if (key == "vertical_cycle_target_agl") { // NEW
+                    vertical_cycle_target_agl = std::stof(value);
+                    std::cout << "  vertical_cycle_target_agl set to: " << vertical_cycle_target_agl << " meters (from preferences file)" << std::endl; // Logged
+                } else if (key == "vertical_cycle_count") { // NEW
+                    vertical_cycle_count = std::stoi(value);
+                    std::cout << "  vertical_cycle_count set to: " << vertical_cycle_count << " (from preferences file)" << std::endl; // Logged
+                } else if (key == "vertical_cycle_agl_tolerance") { // NEW
+                    vertical_cycle_agl_tolerance = std::stof(value);
+                    std::cout << "  vertical_cycle_agl_tolerance set to: " << vertical_cycle_agl_tolerance << " meters (from preferences file)" << std::endl; // Logged
+                } else if (key == "ascent_speed") { // Reused Param
                     ascent_speed = std::stof(value);
                     std::cout << "  ascent_speed set to: " << ascent_speed << " m/s (from preferences file)" << std::endl; // Logged
-                } else if (key == "complex_cycles") {
-                    complex_cycles = std::stoi(value);
-                    std::cout << "  complex_cycles set to: " << complex_cycles << " (from preferences file)" << std::endl; // Logged
-                } else if (key == "lateral_step_meters") { // Renamed from azimuth_step
-                    lateral_step_meters = std::stof(value);
-                    std::cout << "  lateral_step_meters set to: " << lateral_step_meters << " meters (from preferences file)" << std::endl; // Logged
+                } else if (key == "descent_speed") { // Reused Param
+                    descent_speed = std::stof(value);
+                    std::cout << "  descent_speed set to: " << descent_speed << " m/s (from preferences file)" << std::endl; // Logged
+                } else if (key == "target_beacon_range") { // Reused Param
+                    target_beacon_range = std::stof(value);
+                    std::cout << "  target_beacon_range (Base) set to: " << target_beacon_range << " meters (from preferences file)" << std::endl; // Logged
+                } else if (key == "beacon_range_tolerance") { // Reused Param
+                    beacon_range_tolerance = std::stof(value);
+                    std::cout << "  beacon_range_tolerance set to: " << beacon_range_tolerance << " meters (from preferences file)" << std::endl; // Logged
                 }
+
+
             } catch (const std::invalid_argument& ia) {
                 std::cerr << "Warning: Invalid number format for key '" << key << "' in preferences file: " << value << std::endl; // Logged
             } catch (const std::out_of_range& oor) {
@@ -310,15 +327,16 @@ void loadPreferences() {
         std::cout << "  Default Kp_lateral: " << Kp_lateral << std::endl; // Logged
         std::cout << "  Default max_lateral_speed: " << max_lateral_speed << " m/s" << std::endl; // Logged
         std::cout << "  Default azimuth_dead_zone: " << azimuth_dead_zone << " degrees" << std::endl; // Logged
-        std::cout << "  Default position_distance_tolerance: " << position_distance_tolerance << " meters" << std::endl; // Logged
-        std::cout << "  Default position_azimuth_tolerance: " << position_azimuth_tolerance << " degrees" << std::endl; // Logged
-        std::cout << "  Default descent_speed: " << descent_speed << " m/s" << std::endl; // Logged
-        std::cout << "  Default min_floor_altitude: " << min_floor_altitude << " meters" << std::endl; // Logged
-        std::cout << "  Default target_beacon_range (Base): " << target_beacon_range << " meters" << std::endl; // Logged Updated desc
-        std::cout << "  Default beacon_range_tolerance: " << beacon_range_tolerance << " meters" << std::endl; // Logged
-        std::cout << "  Default ascent_speed: " << ascent_speed << " m/s" << std::endl; // Logged
-        std::cout << "  Default complex_cycles: " << complex_cycles << std::endl; // Logged
-        std::cout << "  Default lateral_step_meters: " << lateral_step_meters << " meters" << std::endl; // Logged Renamed
+        std::cout << "  Default Kp_yaw: " << Kp_yaw << std::endl; // Logged NEW
+        std::cout << "  Default max_yaw_rate: " << max_yaw_rate << " deg/s" << std::endl; // Logged NEW
+        std::cout << "  Default yaw_dead_zone: " << yaw_dead_zone << " degrees" << std::endl; // Logged NEW
+        std::cout << "  Default vertical_cycle_target_agl: " << vertical_cycle_target_agl << " meters" << std::endl; // Logged NEW
+        std::cout << "  Default vertical_cycle_count: " << vertical_cycle_count << std::endl; // Logged NEW
+        std::cout << "  Default vertical_cycle_agl_tolerance: " << vertical_cycle_agl_tolerance << " meters" << std::endl; // Logged NEW
+        std::cout << "  Default ascent_speed: " << ascent_speed << " m/s" << std::endl; // Logged Reused
+        std::cout << "  Default descent_speed: " << descent_speed << " m/s" << std::endl; // Logged Reused
+        std::cout << "  Default target_beacon_range (Base): " << target_beacon_range << " meters" << std::endl; // Logged Reused
+        std::cout << "  Default beacon_range_tolerance: " << beacon_range_tolerance << " meters" << std::endl; // Logged Reused
     }
 }
 
@@ -366,7 +384,7 @@ void displayRadarObjectsMinimal(const std::vector<RadarObject>& objects) {
     }
 }
 
-// --- ORIGINAL FUNCTION - DO NOT EDIT -- (Except for logging) ---
+// --- ORIGINAL FUNCTION [w] ---
 void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
     for (const auto& obj : objects) {
          if (stopProcessingFlag.load()) return;
@@ -383,14 +401,14 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
             if (!currentSecond.empty() && (hasAnonData || foundTargetBeacon)) {
                 if (enableControl && vehicle != nullptr && vehicle->control != nullptr) {
                     float velocity_x = 0.0f;
-                    if (hasAnonData) {
+                    if (hasAnonData) { // Use overall closest anon range for 'w' mode
                         float difference = lowestRange - targetDistance;
                         if (std::abs(difference) > forward_dead_zone) {
                             velocity_x = std::max(-max_forward_speed, std::min(Kp_forward * difference, max_forward_speed));
                         }
                     }
                     float velocity_y = 0.0f;
-                    if (foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
+                    if (foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) { // Use beacon azimuth for 'w' mode lateral control
                         float azimuth_error = targetBeaconAzimuth - targetAzimuth;
                         if (std::abs(azimuth_error) > azimuth_dead_zone) {
                             velocity_y = std::max(-max_lateral_speed, std::min(Kp_lateral * azimuth_error, max_lateral_speed));
@@ -399,150 +417,142 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
                     uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY |
                                           DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
                                           DJI::OSDK::Control::STABLE_ENABLE;
-                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, 0, 0);
-                    std::cout << "Control Status: \n" // Logged
-                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
-                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n" // Logged (Truncated for brevity)
+                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, 0, 0); // Z vel and Yaw rate are 0
+                    std::cout << "[Default Follow] Control Status: \n" // Logged
+                              << "TargetWall=" << targetDistance << " | CurrentWall(AnyAnon)=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
+                              << "TargetBeaconAz=" << targetAzimuth << " | CurrentBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n" // Logged
                               << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ")" << std::endl; // Logged
                     std::cout << "--------------------------------------" << std::endl; // Logged
                     vehicle->control->flightCtrl(ctrlData);
                 } else if (hasAnonData || foundTargetBeacon) {
-                     std::cout << "(Flight Control Disabled or Not Available)" << std::endl; // Logged
+                     std::cout << "[Default Follow] (Flight Control Disabled or Not Available)\n"
+                               << "TargetWall=" << targetDistance << " | CurrentWall(AnyAnon)=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
+                               << "TargetBeaconAz=" << targetAzimuth << " | CurrentBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") // Logged
+                               << std::endl;
                      std::cout << "--------------------------------------" << std::endl; // Logged
                 }
             }
-            currentSecond = objSecond;
-            lowestRange = std::numeric_limits<float>::max();
-            hasAnonData = false;
-            targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
-            current_beacon_range = std::numeric_limits<float>::quiet_NaN(); // Reset beacon range too
-            foundTargetBeacon = false;
-        }
-        if (obj.ID == TARGET_BEACON_ID) {
-            if (!foundTargetBeacon) {
-                 targetBeaconAzimuth = obj.Az;
-                 current_beacon_range = obj.Range; // Store range
-                 foundTargetBeacon = true;
-            }
-        }
-        else if (obj.ID.find("anon") != std::string::npos) {
-            hasAnonData = true;
-            if (obj.Range < lowestRange) lowestRange = obj.Range;
-        }
-         if (stopProcessingFlag.load()) return;
-    }
-}
-// --- END ORIGINAL FUNCTION ---
-
-
-// --- FUNCTION FOR SIMPLE VERTICAL TEST [x] - DO NOT EDIT -- (Except for logging) ---
-void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
-    static bool descend_active = false;
-    static bool ascent_active = false;
-    static std::thread::id current_thread_id;
-    if (current_thread_id != std::this_thread::get_id()) {
-        descend_active = false;
-        ascent_active = false;
-        current_thread_id = std::this_thread::get_id();
-        std::cout << "[Simple Vert] State reset for new thread run." << std::endl; // Logged
-    }
-
-    for (const auto& obj : objects) {
-         if (stopProcessingFlag.load()) return;
-        std::string ts_cleaned = obj.timestamp;
-        if (!ts_cleaned.empty() && ts_cleaned.front() == '"') ts_cleaned.erase(0, 1);
-        if (!ts_cleaned.empty() && ts_cleaned.back() == '"') ts_cleaned.pop_back();
-        std::string objSecond;
-        size_t dotPos = ts_cleaned.find('.');
-        objSecond = (dotPos != std::string::npos) ? ts_cleaned.substr(0, dotPos) : ts_cleaned;
-        if (!currentSecond.empty() && objSecond < currentSecond) {
-            continue;
-        }
-        if (objSecond != currentSecond) {
-            if (!currentSecond.empty() && (hasAnonData || foundTargetBeacon)) {
-                if (enableControl && vehicle != nullptr && vehicle->control != nullptr && vehicle->subscribe != nullptr) {
-                    float velocity_x = 0.0f;
-                    float velocity_y = 0.0f;
-                    float velocity_z = 0.0f;
-                    float current_height = -1.0f;
-                    std::string vertical_status = "Holding Alt";
-                    if (hasAnonData) {
-                        float difference = lowestRange - targetDistance;
-                        if (std::abs(difference) > forward_dead_zone) {
-                            velocity_x = std::max(-max_forward_speed, std::min(Kp_forward * difference, max_forward_speed));
-                        }
-                    }
-                    if (foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
-                        float azimuth_error = targetBeaconAzimuth - targetAzimuth; // Using initial targetAzimuth
-                        if (std::abs(azimuth_error) > azimuth_dead_zone) { // Use initial dead zone here
-                            velocity_y = std::max(-max_lateral_speed, std::min(Kp_lateral * azimuth_error, max_lateral_speed));
-                        }
-                    }
-                    bool distance_ok = hasAnonData && (std::abs(lowestRange - targetDistance) <= position_distance_tolerance);
-                    bool azimuth_ok = foundTargetBeacon && !std::isnan(targetBeaconAzimuth) && (std::abs(targetBeaconAzimuth - targetAzimuth) <= position_azimuth_tolerance);
-                    if (distance_ok && azimuth_ok && !descend_active && !ascent_active) {
-                        std::cout << "[Simple Vert] Position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl; // Logged
-                        descend_active = true;
-                    }
-                    if (descend_active && !ascent_active) {
-                        current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>();
-                        if (current_height > min_floor_altitude) {
-                            velocity_z = -descent_speed;
-                            vertical_status = "Descending";
-                        } else {
-                            velocity_z = 0.0f;
-                            vertical_status = "Min Alt Reached, Starting Ascent";
-                            std::cout << "[Simple Vert] Minimum altitude reached. Starting ascent phase." << std::endl; // Logged
-                            ascent_active = true;
-                            descend_active = false;
-                        }
-                    } else if (ascent_active) {
-                        current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>();
-                        if (foundTargetBeacon && !std::isnan(current_beacon_range)) {
-                            if (current_beacon_range > target_beacon_range + beacon_range_tolerance) { // Uses fixed target_beacon_range
-                                velocity_z = ascent_speed;
-                                vertical_status = "Ascending (Beacon Range)";
-                            } else {
-                                velocity_z = 0.0f;
-                                vertical_status = "Target Beacon Range Reached";
-                            }
-                        } else {
-                            velocity_z = 0.0f;
-                            vertical_status = "Ascending (Beacon Lost)";
-                            std::cerr << "[Simple Vert] Warning: Beacon lost during ascent phase. Hovering." << std::endl; // Logged
-                        }
-                    }
-                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY |
-                                          DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
-                                          DJI::OSDK::Control::STABLE_ENABLE;
-                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, 0);
-                    std::cout << "[Simple Vert] Control Status: \n" // Logged
-                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
-                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n" // Logged (Truncated)
-                              << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n" // Logged (Truncated)
-                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n" // Logged
-                              << "Vertical Status: " << vertical_status << " | Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl; // Logged
-                    std::cout << "--------------------------------------" << std::endl; // Logged
-                    vehicle->control->flightCtrl(ctrlData);
-                } else if (hasAnonData || foundTargetBeacon) {
-                     std::string status = "[Simple Vert] (Flight Control Disabled or Not Available)";
-                     if (enableControl && vehicle && !vehicle->subscribe) {
-                         status = "[Simple Vert] (Vehicle Subscribe Not Available - Cannot get height)";
-                     }
-                     std::cout << status << std::endl; // Logged
-                     std::cout << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
-                               << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n" // Logged (Truncated)
-                               << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"; // Logged (Truncated)
-                     std::cout << "--------------------------------------" << std::endl; // Logged
-                }
-            }
+            // Reset ALL state variables for the new second
             currentSecond = objSecond;
             lowestRange = std::numeric_limits<float>::max();
             hasAnonData = false;
             targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
             current_beacon_range = std::numeric_limits<float>::quiet_NaN();
             foundTargetBeacon = false;
+            closestHorizAnonRange = std::numeric_limits<float>::max();
+            closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN();
+            hasHorizAnonData = false;
         }
+
+        // Accumulate general data for the current second
+        if (obj.ID == TARGET_BEACON_ID) {
+            if (!foundTargetBeacon) {
+                 targetBeaconAzimuth = obj.Az;
+                 current_beacon_range = obj.Range;
+                 foundTargetBeacon = true;
+            }
+        }
+        else if (obj.ID.find("anon") != std::string::npos) {
+            hasAnonData = true;
+            if (obj.Range < lowestRange) lowestRange = obj.Range; // Track overall closest anon
+
+            // Accumulate yaw-specific data even if not used by this function's control
+             if (obj.sensor == "R_Az" || obj.sensor == "R_El_R_Az") {
+                 hasHorizAnonData = true;
+                 if (obj.Range < closestHorizAnonRange) {
+                     closestHorizAnonRange = obj.Range;
+                     closestHorizAnonAzimuth = obj.Az;
+                 }
+            }
+        }
+         if (stopProcessingFlag.load()) return;
+    }
+}
+// --- END ORIGINAL FUNCTION ---
+
+// --- FUNCTION FOR YAW LOCK TEST [y] ---
+void extractBeaconAndWallData_YawLock(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
+
+    // Accumulate data within the current second
+    for (const auto& obj : objects) {
+         if (stopProcessingFlag.load()) return; // Check stop flag during accumulation
+
+        // Extract second from timestamp (same logic as other functions)
+        std::string ts_cleaned = obj.timestamp;
+        if (!ts_cleaned.empty() && ts_cleaned.front() == '"') ts_cleaned.erase(0, 1);
+        if (!ts_cleaned.empty() && ts_cleaned.back() == '"') ts_cleaned.pop_back();
+        std::string objSecond;
+        size_t dotPos = ts_cleaned.find('.');
+        objSecond = (dotPos != std::string::npos) ? ts_cleaned.substr(0, dotPos) : ts_cleaned;
+
+        // If this is the first object of a new second, process the *previous* second's data
+        // and reset accumulation variables.
+        if (objSecond != currentSecond) {
+            if (!currentSecond.empty() && hasHorizAnonData) { // Only process if we had valid horizontal data
+
+                // --- Control Logic ---
+                if (enableControl && vehicle != nullptr && vehicle->control != nullptr) {
+                    float velocity_x = 0.0f;
+                    float yaw_rate = 0.0f;
+
+                    // --- Forward Velocity Control (based on closest horizontal anon range) ---
+                    float distance_error = closestHorizAnonRange - targetDistance;
+                    if (std::abs(distance_error) > forward_dead_zone) {
+                        velocity_x = std::max(-max_forward_speed, std::min(Kp_forward * distance_error, max_forward_speed));
+                    }
+
+                    // --- Yaw Rate Control (based on closest horizontal anon azimuth) ---
+                    // Azimuth is the error we want to correct to zero.
+                    float yaw_azimuth_error = closestHorizAnonAzimuth;
+                    if (std::abs(yaw_azimuth_error) > yaw_dead_zone) {
+                        yaw_rate = Kp_yaw * yaw_azimuth_error;
+                        // Clamp the yaw rate
+                        yaw_rate = std::max(-max_yaw_rate, std::min(yaw_rate, max_yaw_rate));
+                    }
+
+                    // --- Set Control Flags and Data ---
+                    // We control horizontal velocity and yaw rate. Vertical velocity and lateral velocity are zero.
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | // Control X velocity
+                                          DJI::OSDK::Control::VERTICAL_VELOCITY |   // Keep Z velocity at 0
+                                          DJI::OSDK::Control::YAW_RATE |          // Control Yaw Rate
+                                          DJI::OSDK::Control::HORIZONTAL_BODY |   // Interpret X/Y in drone's body frame
+                                          DJI::OSDK::Control::STABLE_ENABLE;      // Use DJI's stabilization
+
+                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, 0.0f, 0.0f, yaw_rate); // Y and Z velocity are 0
+
+                    // --- Logging ---
+                    std::cout << "[Yaw Lock] Control Status: \n"
+                              << "  TargetWallDist=" << targetDistance << " | CurrentWallDist(Horiz)=" << closestHorizAnonRange << "\n"
+                              << "  TargetWallAz=0" << " | CurrentWallAz(Horiz)=" << closestHorizAnonAzimuth << "\n"
+                              << "  Computed Vel(X)=" << velocity_x << " | Computed YawRate=" << yaw_rate << " deg/s"
+                              << std::endl;
+                    std::cout << "--------------------------------------" << std::endl;
+
+                    // --- Send Command ---
+                    vehicle->control->flightCtrl(ctrlData);
+
+                } else if (hasHorizAnonData) { // Control disabled but we have data
+                     std::cout << "[Yaw Lock] (Flight Control Disabled or Not Available)\n"
+                               << "  TargetWallDist=" << targetDistance << " | CurrentWallDist(Horiz)=" << closestHorizAnonRange << "\n"
+                               << "  TargetWallAz=0" << " | CurrentWallAz(Horiz)=" << closestHorizAnonAzimuth
+                               << std::endl;
+                     std::cout << "--------------------------------------" << std::endl;
+                }
+            } // End processing previous second
+
+            // --- Reset ALL state variables for the new second ---
+            currentSecond = objSecond;
+            closestHorizAnonRange = std::numeric_limits<float>::max();
+            closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN();
+            hasHorizAnonData = false;
+            lowestRange = std::numeric_limits<float>::max();
+            hasAnonData = false;
+            targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
+            current_beacon_range = std::numeric_limits<float>::quiet_NaN();
+            foundTargetBeacon = false;
+        } // End if (new second)
+
+        // --- Data Accumulation for the *current* second ---
         if (obj.ID == TARGET_BEACON_ID) {
             if (!foundTargetBeacon) {
                  targetBeaconAzimuth = obj.Az;
@@ -553,37 +563,27 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
         else if (obj.ID.find("anon") != std::string::npos) {
             hasAnonData = true;
             if (obj.Range < lowestRange) lowestRange = obj.Range;
+
+            if (obj.sensor == "R_Az" || obj.sensor == "R_El_R_Az") {
+                 hasHorizAnonData = true;
+                 if (obj.Range < closestHorizAnonRange) {
+                     closestHorizAnonRange = obj.Range;
+                     closestHorizAnonAzimuth = obj.Az;
+                 }
+            }
         }
-         if (stopProcessingFlag.load()) return;
-    }
+
+        if (stopProcessingFlag.load()) return;
+    } // End loop through objects
 }
-// --- END FUNCTION FOR SIMPLE VERTICAL TEST ---
+// --- END FUNCTION FOR YAW LOCK TEST ---
 
+// --- FUNCTION FOR COMBINED MODE [b] ---
+void extractBeaconAndWallData_Combined(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
 
-// --- COMPLEX VERTICAL TEST FUNCTION [c] --- (Logging added)
-// Implements multi-cycle descent/ascent with lateral step (meters) and dynamic range target
-void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
-
-    // State for the complex vertical test
-    enum class ComplexPhase { INITIAL_POSITIONING, DESCENDING, ALIGNING_FOR_ASCENT, ASCENDING, ALIGNING_FOR_DESCENT, FINISHED };
-    static ComplexPhase current_phase = ComplexPhase::INITIAL_POSITIONING;
-    static int current_cycle = 0;
-    static float current_target_lateral_offset_meters = 0.0f; // Cumulative desired lateral offset (m)
-    static float current_target_azimuth_offset = 0.0f;      // Calculated total azimuth offset (deg) needed
-
-    // Reset state if thread restarts
-    static std::thread::id current_thread_id;
-    if (current_thread_id != std::this_thread::get_id()) {
-        current_phase = ComplexPhase::INITIAL_POSITIONING;
-        current_cycle = 0;
-        current_target_lateral_offset_meters = 0.0f;
-        current_target_azimuth_offset = 0.0f;
-        current_thread_id = std::this_thread::get_id();
-        std::cout << "[Complex Vert] State reset for new thread run." << std::endl; // Logged
-    }
-
+    // Accumulate data within the current second
     for (const auto& obj : objects) {
-         if (stopProcessingFlag.load()) return;
+         if (stopProcessingFlag.load()) return; // Check stop flag during accumulation
 
         // Extract second from timestamp
         std::string ts_cleaned = obj.timestamp;
@@ -593,244 +593,714 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
         size_t dotPos = ts_cleaned.find('.');
         objSecond = (dotPos != std::string::npos) ? ts_cleaned.substr(0, dotPos) : ts_cleaned;
 
-        // Skip old data
-        if (!currentSecond.empty() && objSecond < currentSecond) {
-            continue;
+        // If this is the first object of a new second, process the *previous* second's data
+        // and reset accumulation variables.
+        if (objSecond != currentSecond) {
+            // Process previous second only if we have the necessary data (horizontal anon for yaw/dist, beacon for lateral)
+            if (!currentSecond.empty() && (hasHorizAnonData || foundTargetBeacon)) {
+
+                // --- Control Logic ---
+                if (enableControl && vehicle != nullptr && vehicle->control != nullptr) {
+                    float velocity_x = 0.0f;
+                    float velocity_y = 0.0f;
+                    float yaw_rate = 0.0f;
+
+                    // --- Forward Velocity Control (based on closest *horizontal* anon range) ---
+                    if (hasHorizAnonData) {
+                        float distance_error = closestHorizAnonRange - targetDistance;
+                        if (std::abs(distance_error) > forward_dead_zone) {
+                            velocity_x = std::max(-max_forward_speed, std::min(Kp_forward * distance_error, max_forward_speed));
+                        }
+                    } // else velocity_x remains 0 if no horizontal anon data
+
+                    // --- Lateral Velocity Control (based on *target beacon* azimuth) ---
+                    if (foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
+                        float lateral_azimuth_error = targetBeaconAzimuth - targetAzimuth; // Compare beacon az to initial target az
+                        if (std::abs(lateral_azimuth_error) > azimuth_dead_zone) {
+                            velocity_y = std::max(-max_lateral_speed, std::min(Kp_lateral * lateral_azimuth_error, max_lateral_speed));
+                        }
+                    } // else velocity_y remains 0 if no beacon found
+
+                    // --- Yaw Rate Control (based on closest *horizontal* anon azimuth) ---
+                    if (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth)) {
+                        float yaw_azimuth_error = closestHorizAnonAzimuth; // Target is 0 azimuth relative to wall
+                        if (std::abs(yaw_azimuth_error) > yaw_dead_zone) {
+                            yaw_rate = Kp_yaw * yaw_azimuth_error;
+                            // Clamp the yaw rate
+                            yaw_rate = std::max(-max_yaw_rate, std::min(yaw_rate, max_yaw_rate));
+                        }
+                    } // else yaw_rate remains 0 if no horizontal anon data
+
+                    // --- Set Control Flags and Data ---
+                    // Control X vel, Y vel, and Yaw Rate. Z vel is 0.
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | // Control X and Y velocity
+                                          DJI::OSDK::Control::VERTICAL_VELOCITY |   // Keep Z velocity at 0
+                                          DJI::OSDK::Control::YAW_RATE |          // Control Yaw Rate
+                                          DJI::OSDK::Control::HORIZONTAL_BODY |   // Interpret X/Y in drone's body frame
+                                          DJI::OSDK::Control::STABLE_ENABLE;      // Use DJI's stabilization
+
+                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, 0.0f, yaw_rate); // Z velocity is 0
+
+                    // --- Logging ---
+                    std::cout << "[Combined Mode] Control Status: \n"
+                              << "  TargetWallDist=" << targetDistance << " | CurrentWallDist(Horiz)=" << (hasHorizAnonData ? std::to_string(closestHorizAnonRange) : "N/A") << "\n"
+                              << "  TargetBeaconAz=" << targetAzimuth << " | CurrentBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                              << "  TargetWallAz=0" << " | CurrentWallAz(Horiz)=" << (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) ? std::to_string(closestHorizAnonAzimuth) : "N/A") << "\n"
+                              << "  Computed Vel(X=" << velocity_x << ", Y=" << velocity_y << ") | Computed YawRate=" << yaw_rate << " deg/s"
+                              << std::endl;
+                    std::cout << "--------------------------------------" << std::endl;
+
+                    // --- Send Command ---
+                    vehicle->control->flightCtrl(ctrlData);
+
+                } else if (hasHorizAnonData || foundTargetBeacon) { // Control disabled but we have data
+                     std::cout << "[Combined Mode] (Flight Control Disabled or Not Available)\n"
+                               << "  TargetWallDist=" << targetDistance << " | CurrentWallDist(Horiz)=" << (hasHorizAnonData ? std::to_string(closestHorizAnonRange) : "N/A") << "\n"
+                               << "  TargetBeaconAz=" << targetAzimuth << " | CurrentBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                               << "  TargetWallAz=0" << " | CurrentWallAz(Horiz)=" << (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) ? std::to_string(closestHorizAnonAzimuth) : "N/A")
+                               << std::endl;
+                     std::cout << "--------------------------------------" << std::endl;
+                }
+            } // End processing previous second
+
+            // --- Reset ALL state variables for the new second ---
+            currentSecond = objSecond;
+            closestHorizAnonRange = std::numeric_limits<float>::max();
+            closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN();
+            hasHorizAnonData = false;
+            lowestRange = std::numeric_limits<float>::max();
+            hasAnonData = false;
+            targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
+            current_beacon_range = std::numeric_limits<float>::quiet_NaN();
+            foundTargetBeacon = false;
+        } // End if (new second)
+
+        // --- Data Accumulation for the *current* second (Required for ALL controls) ---
+        if (obj.ID == TARGET_BEACON_ID) {
+            if (!foundTargetBeacon) { // Store first beacon detection
+                 targetBeaconAzimuth = obj.Az;
+                 current_beacon_range = obj.Range;
+                 foundTargetBeacon = true;
+            }
+        }
+        else if (obj.ID.find("anon") != std::string::npos) {
+            hasAnonData = true; // Mark general anon data
+            if (obj.Range < lowestRange) lowestRange = obj.Range; // Track overall closest (for 'w' mode consistency if needed elsewhere)
+
+            // Accumulate closest *horizontal* anon data specifically
+            if (obj.sensor == "R_Az" || obj.sensor == "R_El_R_Az") {
+                 hasHorizAnonData = true;
+                 if (obj.Range < closestHorizAnonRange) {
+                     closestHorizAnonRange = obj.Range;
+                     closestHorizAnonAzimuth = obj.Az;
+                 }
+            }
         }
 
-        // Process data from previous second if new second detected
+        if (stopProcessingFlag.load()) return; // Check stop flag again after processing object
+    } // End loop through objects
+}
+// --- END FUNCTION FOR COMBINED MODE ---
+
+
+// --- NEW VERTICAL CYCLE FUNCTIONS [1, 2, 3] ---
+
+// State for Vertical Cycling modes
+enum class VerticalCyclePhase { ALIGNING_INITIAL, DESCENDING, ASCENDING, COMPLETED_ALL };
+
+// Helper function to get phase name string
+std::string getVerticalCyclePhaseName(VerticalCyclePhase phase) {
+    switch(phase) {
+        case VerticalCyclePhase::ALIGNING_INITIAL: return "ALIGNING_INITIAL";
+        case VerticalCyclePhase::DESCENDING: return "DESCENDING";
+        case VerticalCyclePhase::ASCENDING: return "ASCENDING";
+        case VerticalCyclePhase::COMPLETED_ALL: return "COMPLETED_ALL";
+        default: return "UNKNOWN";
+    }
+}
+
+// Base logic for Vertical Cycle modes [1] (Mirrors 'w' horizontally)
+void extractBeaconAndWallData_VerticalCycle(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
+    static VerticalCyclePhase current_phase = VerticalCyclePhase::ALIGNING_INITIAL;
+    static int current_cycle = 0;
+    static std::thread::id current_thread_id;
+
+    // Reset state if thread restarts
+    if (current_thread_id != std::this_thread::get_id()) {
+        current_phase = VerticalCyclePhase::ALIGNING_INITIAL;
+        current_cycle = 0;
+        current_thread_id = std::this_thread::get_id();
+        std::cout << "[Vert Cycle W] State reset for new thread run." << std::endl; // Logged
+    }
+
+    // Accumulate data within the current second
+    for (const auto& obj : objects) {
+         if (stopProcessingFlag.load()) return; // Check stop flag during accumulation
+
+        // Extract second from timestamp
+        std::string ts_cleaned = obj.timestamp;
+        if (!ts_cleaned.empty() && ts_cleaned.front() == '"') ts_cleaned.erase(0, 1);
+        if (!ts_cleaned.empty() && ts_cleaned.back() == '"') ts_cleaned.pop_back();
+        std::string objSecond;
+        size_t dotPos = ts_cleaned.find('.');
+        objSecond = (dotPos != std::string::npos) ? ts_cleaned.substr(0, dotPos) : ts_cleaned;
+
+        // If this is the first object of a new second, process the *previous* second's data
         if (objSecond != currentSecond) {
+            // Process previous second only if we have relevant data (anon or beacon)
             if (!currentSecond.empty() && (hasAnonData || foundTargetBeacon)) {
 
-                // --- Movement Logic --
+                // --- Control Logic ---
                 if (enableControl && vehicle != nullptr && vehicle->control != nullptr && vehicle->subscribe != nullptr) {
                     float velocity_x = 0.0f;
                     float velocity_y = 0.0f;
                     float velocity_z = 0.0f;
-                    float current_height = -1.0f; // AGL
-                    std::string phase_status_str = "Unknown";
-                    float runtime_target_slant_range = target_beacon_range; // Default to base range
-                    float azimuth_error = std::numeric_limits<float>::quiet_NaN(); // Initialize azimuth error
+                    float yaw_rate = 0.0f; // Yaw not controlled in this mode
+                    float current_height_agl = -1.0f; // Initialize AGL height
 
-                    // --- Always calculate Horizontal Velocities ---
+                    // --- Horizontal Control (Mirrors 'w') ---
+                    // Forward Velocity based on *any* closest anon detection
                     if (hasAnonData) {
                         float distance_error = lowestRange - targetDistance;
                         if (std::abs(distance_error) > forward_dead_zone) {
                             velocity_x = std::max(-max_forward_speed, std::min(Kp_forward * distance_error, max_forward_speed));
                         }
                     }
-
-                    // Calculate the total target azimuth (initial + offset) in degrees
-                    float runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset;
+                    // Lateral Velocity based on *beacon* azimuth
                     if (foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
-                        azimuth_error = targetBeaconAzimuth - runtime_target_azimuth; // Calculate error based on *current* target azimuth
-                        if (std::abs(azimuth_error) > position_azimuth_tolerance) { // Use tolerance as deadband
-                             velocity_y = std::max(-max_lateral_speed, std::min(Kp_lateral * azimuth_error, max_lateral_speed));
+                        float lateral_azimuth_error = targetBeaconAzimuth - targetAzimuth;
+                        if (std::abs(lateral_azimuth_error) > azimuth_dead_zone) {
+                            velocity_y = std::max(-max_lateral_speed, std::min(Kp_lateral * lateral_azimuth_error, max_lateral_speed));
                         }
-                    } else if (current_phase != ComplexPhase::INITIAL_POSITIONING && current_phase != ComplexPhase::FINISHED) {
-                        velocity_y = 0.0f;
-                         std::cerr << "[Complex Vert] Warning: Beacon lost during active phase. Halting lateral motion." << std::endl; // Logged
+                    } else if (current_phase != VerticalCyclePhase::ALIGNING_INITIAL && current_phase != VerticalCyclePhase::COMPLETED_ALL) {
+                         std::cout << "***BEACON NOT FOUND***" << std::endl;
+                         velocity_y = 0.0f; // Stop lateral movement if beacon lost during active cycle
                     }
-                    // --- End Horizontal Velocity Calculation ---
 
-
-                    // --- Phase-Based Vertical Velocity and State Transitions ---
-                    // Recalculate alignment based on potentially non-NaN azimuth_error
-                    bool is_azimuth_aligned = foundTargetBeacon && !std::isnan(azimuth_error) && (std::abs(azimuth_error) <= position_azimuth_tolerance);
-                    bool is_distance_aligned = hasAnonData && (std::abs(lowestRange - targetDistance) <= position_distance_tolerance);
-                    // is_beacon_range_met is now declared and calculated *inside* ASCENDING case
+                    // --- Vertical Cycle State Machine ---
+                    bool horizontal_dist_ok = hasAnonData && (std::abs(lowestRange - targetDistance) <= position_distance_tolerance);
+                    bool lateral_beacon_az_ok = foundTargetBeacon && !std::isnan(targetBeaconAzimuth) && (std::abs(targetBeaconAzimuth - targetAzimuth) <= position_azimuth_tolerance);
+                    bool beacon_range_ok = foundTargetBeacon && !std::isnan(current_beacon_range) && (std::abs(current_beacon_range - target_beacon_range) <= beacon_range_tolerance);
 
                     switch (current_phase) {
-                        case ComplexPhase::INITIAL_POSITIONING:
-                            phase_status_str = "Initial Positioning";
+                        case VerticalCyclePhase::ALIGNING_INITIAL:
                             velocity_z = 0.0f;
-                            // Use initial azimuth dead zone for the very first alignment check
-                            if (is_distance_aligned && foundTargetBeacon && !std::isnan(azimuth_error) && (std::abs(azimuth_error) <= azimuth_dead_zone)) {
-                                std::cout << "[Complex Vert] Initial position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting Cycle " << current_cycle + 1 << "." << std::endl; // Logged
-                                current_phase = ComplexPhase::DESCENDING;
+                            if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl; }
+                            // Check if horizontal distance, lateral beacon azimuth, AND beacon range are met
+                            if (horizontal_dist_ok && lateral_beacon_az_ok && beacon_range_ok) {
+                                std::cout << "[Vert Cycle W] Initial position confirmed. Starting Cycle " << current_cycle + 1 << "." << std::endl; // Logged
+                                current_phase = VerticalCyclePhase::DESCENDING;
                             }
+                            // Horizontal control continues trying to align
                             break;
 
-                        case ComplexPhase::DESCENDING:
-                            phase_status_str = "Descending (Cycle " + std::to_string(current_cycle + 1) + ")";
-                            current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>();
-                            if (current_height > min_floor_altitude) {
+                        case VerticalCyclePhase::DESCENDING:
+                            current_height_agl = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>();
+                            if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl; } // Log beacon loss but continue descent based on height
+                            // Check AGL height
+                            if (current_height_agl > vertical_cycle_target_agl + vertical_cycle_agl_tolerance) {
                                 velocity_z = -descent_speed;
-                            } else {
+                            } else { // Reached target AGL
                                 velocity_z = 0.0f;
-                                // Increment desired lateral offset
-                                current_target_lateral_offset_meters += lateral_step_meters;
-                                // Calculate the required azimuth offset (degrees) for this lateral offset
-                                if (std::abs(targetDistance) > 1e-6) { // Avoid division by zero
-                                    current_target_azimuth_offset = std::atan(current_target_lateral_offset_meters / targetDistance) * 180.0 / M_PI;
-                                } else {
-                                    current_target_azimuth_offset = 0.0; // Or handle error appropriately
-                                    std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl; // Logged
-                                }
-                                runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset; // Update for logging
-                                std::cout << "[Complex Vert] Min altitude reached. New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl; // Logged
-                                std::cout << "[Complex Vert] Aligning for ascent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl; // Logged
-                                current_phase = ComplexPhase::ALIGNING_FOR_ASCENT;
+                                std::cout << "[Vert Cycle W] Target AGL reached (" << current_height_agl << "m). Starting ascent." << std::endl; // Logged
+                                current_phase = VerticalCyclePhase::ASCENDING;
                             }
+                            // Horizontal control continues
                             break;
 
-                        case ComplexPhase::ALIGNING_FOR_ASCENT:
-                            phase_status_str = "Aligning for Ascent (Cycle " + std::to_string(current_cycle + 1) + ")";
-                            velocity_z = 0.0f;
-                            current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
-                            if (is_azimuth_aligned) { // Check alignment against calculated runtime target azimuth
-                                std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting ascent." << std::endl; // Logged
-                                current_phase = ComplexPhase::ASCENDING;
-                            }
-                            // else: velocity_x and velocity_y continue to drive alignment
-                            break;
-
-                        case ComplexPhase::ASCENDING:
-                            { // <<<--- Start new scope for case variables
-                                phase_status_str = "Ascending (Cycle " + std::to_string(current_cycle + 1) + ")";
-                                current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
-
-                                // Calculate Dynamic Target Slant Range for this phase
-                                {
-                                    // Use the current runtime_target_azimuth (calculated from lateral offset)
-                                    double runtime_azimuth_rad = runtime_target_azimuth * M_PI / 180.0;
-                                    if (std::abs(std::cos(runtime_azimuth_rad)) < 1e-6) {
-                                        runtime_azimuth_rad = std::copysign(M_PI / 2.0 - 1e-6, runtime_azimuth_rad);
-                                    }
-                                    // Y_target is the *current* desired lateral offset
-                                    double Y_target = current_target_lateral_offset_meters;
-                                    // Calculate required slant range based on base range (vertical height) and current lateral offset
-                                    runtime_target_slant_range = static_cast<float>(std::sqrt(std::pow(target_beacon_range, 2) + std::pow(Y_target, 2)));
-                                }
-                                // Update range met condition based on dynamic range - MOVED INSIDE CASE
-                                bool is_beacon_range_met = foundTargetBeacon && !std::isnan(current_beacon_range) && (current_beacon_range <= runtime_target_slant_range + beacon_range_tolerance);
-
-                                if (foundTargetBeacon && !std::isnan(current_beacon_range)) {
-                                    if (!is_beacon_range_met) {
-                                        velocity_z = ascent_speed;
-                                    } else {
-                                        // Target dynamic range met
-                                        velocity_z = 0.0f;
-                                        current_cycle++;
-                                        std::cout << "[Complex Vert] Target beacon range reached (Range: " << current_beacon_range << ", Target: " << runtime_target_slant_range << "). Cycle " << current_cycle << " completed." << std::endl; // Logged
-                                        if (current_cycle >= complex_cycles) {
-                                            current_phase = ComplexPhase::FINISHED;
-                                            std::cout << "[Complex Vert] All cycles finished." << std::endl; // Logged
-                                        } else {
-                                            // Increment desired lateral offset for next descent
-                                            current_target_lateral_offset_meters += lateral_step_meters;
-                                            // Calculate the required azimuth offset (degrees)
-                                            if (std::abs(targetDistance) > 1e-6) {
-                                                current_target_azimuth_offset = std::atan(current_target_lateral_offset_meters / targetDistance) * 180.0 / M_PI;
-                                            } else {
-                                                current_target_azimuth_offset = 0.0;
-                                                std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl; // Logged
-                                            }
-                                            runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset; // Update for logging
-                                            std::cout << "[Complex Vert] New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl; // Logged
-                                            std::cout << "[Complex Vert] Aligning for next descent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl; // Logged
-                                            current_phase = ComplexPhase::ALIGNING_FOR_DESCENT;
-                                        }
-                                    }
-                                } else {
-                                    // Beacon lost during ascent
+                        case VerticalCyclePhase::ASCENDING:
+                            if (foundTargetBeacon && !std::isnan(current_beacon_range)) {
+                                // Check beacon range
+                                if (current_beacon_range > target_beacon_range + beacon_range_tolerance) {
+                                    velocity_z = ascent_speed;
+                                } else { // Reached target beacon range
                                     velocity_z = 0.0f;
-                                    phase_status_str = "Ascending (Beacon Lost)";
-                                    std::cerr << "[Complex Vert] Warning: Beacon lost during ascent. Hovering vertically." << std::endl; // Logged
+                                    current_cycle++;
+                                    std::cout << "[Vert Cycle W] Target beacon range reached (" << current_beacon_range << "m). Cycle " << current_cycle << " completed." << std::endl; // Logged
+                                    if (current_cycle >= vertical_cycle_count) {
+                                        current_phase = VerticalCyclePhase::COMPLETED_ALL;
+                                        std::cout << "[Vert Cycle W] All cycles finished." << std::endl; // Logged
+                                    } else {
+                                        // Ready for next descent, just need to wait for next second's data
+                                        current_phase = VerticalCyclePhase::DESCENDING;
+                                        std::cout << "[Vert Cycle W] Starting Cycle " << current_cycle + 1 << " descent." << std::endl; // Logged
+                                    }
                                 }
-                            } // <<<--- End new scope for case variables
+                            } else { // Beacon lost during ascent
+                                 std::cout << "***BEACON NOT FOUND***" << std::endl;
+                                 velocity_z = 0.0f; // Stop ascending
+                                 velocity_y = 0.0f; // Stop lateral movement as well
+                                 std::cerr << "[Vert Cycle W] Warning: Beacon lost during ascent. Hovering." << std::endl; // Logged
+                            }
+                            // Horizontal control continues (except lateral if beacon lost)
                             break;
 
-                        case ComplexPhase::ALIGNING_FOR_DESCENT:
-                             phase_status_str = "Aligning for Descent (Cycle " + std::to_string(current_cycle + 1) + ")";
-                             velocity_z = 0.0f;
-                             current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
-                             if (is_azimuth_aligned) { // Check alignment against calculated runtime target azimuth
-                                 std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl; // Logged
-                                 current_phase = ComplexPhase::DESCENDING;
-                             }
-                             // else: velocity_x and velocity_y continue to drive alignment
-                             break;
-
-                        case ComplexPhase::FINISHED:
-                            phase_status_str = "Finished";
+                        case VerticalCyclePhase::COMPLETED_ALL:
                             velocity_x = 0.0f;
                             velocity_y = 0.0f;
                             velocity_z = 0.0f;
-                            current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
+                            yaw_rate = 0.0f;
+                            // Remain in this state
                             break;
                     }
-                    // --- End Phase Logic ---
 
                     // --- Send Command ---
                     uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY |
                                           DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
                                           DJI::OSDK::Control::STABLE_ENABLE;
-                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, 0);
+                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, yaw_rate);
 
-                    // Log control status summary - Updated Azimuth/Lateral info
-                    std::cout << "[Complex Vert] Control Status: \n" // Logged
-                              << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << phase_status_str << "\n" // Logged
-                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
-                              << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") // Logged (Truncated)
-                              << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n" // Logged
-                              << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n" // Logged (Truncated)
-                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n" // Logged
-                              << "Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl; // Logged
-                    std::cout << "--------------------------------------" << std::endl; // Logged
+                    // --- Logging ---
+                    std::cout << "[Vert Cycle W] Ctl Status: Cycle=" << current_cycle << "/" << vertical_cycle_count << " Phase=" << getVerticalCyclePhaseName(current_phase) << "\n"
+                              << "  TgtWallDist=" << targetDistance << " | CurWallDist(Any)=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
+                              << "  TgtBeaconAz=" << targetAzimuth << " | CurBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                              << "  TgtBeaconRng=" << target_beacon_range << " | CurBeaconRng=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                              << "  TgtAGL=" << vertical_cycle_target_agl << " | CurAGL=" << (current_height_agl >= 0.0f ? std::to_string(current_height_agl) : "N/A") << "\n"
+                              << "  Computed Vel(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ") | YawRate=" << yaw_rate << " deg/s"
+                              << std::endl;
+                    std::cout << "--------------------------------------" << std::endl;
 
                     vehicle->control->flightCtrl(ctrlData);
 
-                } else if (hasAnonData || foundTargetBeacon) { // Control disabled or unavailable
-                     std::string status = "[Complex Vert] (Flight Control Disabled or Not Available)";
-                     if (enableControl && vehicle && !vehicle->subscribe) {
-                         status = "[Complex Vert] (Vehicle Subscribe Not Available - Cannot get height)";
-                     }
-                     std::cout << status << std::endl; // Logged
-                     float runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset;
-                     float runtime_target_slant_range = target_beacon_range;
-                      if (current_phase == ComplexPhase::ASCENDING || current_phase == ComplexPhase::ALIGNING_FOR_DESCENT) {
-                            double Y_target = current_target_lateral_offset_meters;
-                            runtime_target_slant_range = static_cast<float>(std::sqrt(std::pow(target_beacon_range, 2) + std::pow(Y_target, 2)));
-                      }
-                      float azimuth_error = std::numeric_limits<float>::quiet_NaN();
-                      if(foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
-                          azimuth_error = targetBeaconAzimuth - runtime_target_azimuth;
-                      }
-                     std::cout << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << static_cast<int>(current_phase) << "\n" // Logged
-                               << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
-                               << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") // Logged (Truncated)
-                               << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n" // Logged
-                               << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"; // Logged (Truncated)
-                     std::cout << "--------------------------------------" << std::endl; // Logged
+                } else if (hasAnonData || foundTargetBeacon) { // Control disabled but we have data
+                     if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl;} // Log beacon loss even if control disabled
+                     std::cout << "[Vert Cycle W] (Flight Control Disabled or Not Available) Cycle=" << current_cycle << "/" << vertical_cycle_count << " Phase=" << getVerticalCyclePhaseName(current_phase) << "\n"
+                               << "  TgtWallDist=" << targetDistance << " | CurWallDist(Any)=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
+                               << "  TgtBeaconAz=" << targetAzimuth << " | CurBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                               << "  TgtBeaconRng=" << target_beacon_range << " | CurBeaconRng=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                               << "  TgtAGL=" << vertical_cycle_target_agl
+                               << std::endl;
+                     std::cout << "--------------------------------------" << std::endl;
                 }
-            }
+            } // End processing previous second
 
-            // Update to new second and reset per-second state variables for next cycle's accumulation
+            // --- Reset ALL state variables for the new second ---
             currentSecond = objSecond;
             lowestRange = std::numeric_limits<float>::max();
             hasAnonData = false;
             targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
-            current_beacon_range = std::numeric_limits<float>::quiet_NaN(); // Reset beacon range
+            current_beacon_range = std::numeric_limits<float>::quiet_NaN();
             foundTargetBeacon = false;
-        }
+            closestHorizAnonRange = std::numeric_limits<float>::max();
+            closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN();
+            hasHorizAnonData = false;
+        } // End if (new second)
 
-        // --- Data Accumulation for Current Second ---
+        // --- Data Accumulation for the *current* second ---
         if (obj.ID == TARGET_BEACON_ID) {
-            if (!foundTargetBeacon) { // Store first detection's data
+            if (!foundTargetBeacon) {
                  targetBeaconAzimuth = obj.Az;
-                 current_beacon_range = obj.Range; // Store range
+                 current_beacon_range = obj.Range;
                  foundTargetBeacon = true;
             }
         }
         else if (obj.ID.find("anon") != std::string::npos) {
             hasAnonData = true;
             if (obj.Range < lowestRange) lowestRange = obj.Range;
+
+            if (obj.sensor == "R_Az" || obj.sensor == "R_El_R_Az") {
+                 hasHorizAnonData = true;
+                 if (obj.Range < closestHorizAnonRange) {
+                     closestHorizAnonRange = obj.Range;
+                     closestHorizAnonAzimuth = obj.Az;
+                 }
+            }
         }
-         if (stopProcessingFlag.load()) return;
-    }
+        if (stopProcessingFlag.load()) return;
+    } // End loop through objects
 }
-// --- END COMPLEX VERTICAL TEST FUNCTION ---
+
+
+// Base logic for Vertical Cycle modes [2] (Mirrors 'y' horizontally)
+void extractBeaconAndWallData_YawLock_VerticalCycle(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
+    static VerticalCyclePhase current_phase = VerticalCyclePhase::ALIGNING_INITIAL;
+    static int current_cycle = 0;
+    static std::thread::id current_thread_id;
+
+    // Reset state if thread restarts
+    if (current_thread_id != std::this_thread::get_id()) {
+        current_phase = VerticalCyclePhase::ALIGNING_INITIAL;
+        current_cycle = 0;
+        current_thread_id = std::this_thread::get_id();
+        std::cout << "[Vert Cycle Y] State reset for new thread run." << std::endl; // Logged
+    }
+
+    // Accumulate data within the current second
+    for (const auto& obj : objects) {
+         if (stopProcessingFlag.load()) return; // Check stop flag during accumulation
+
+        // Extract second from timestamp
+        std::string ts_cleaned = obj.timestamp;
+        if (!ts_cleaned.empty() && ts_cleaned.front() == '"') ts_cleaned.erase(0, 1);
+        if (!ts_cleaned.empty() && ts_cleaned.back() == '"') ts_cleaned.pop_back();
+        std::string objSecond;
+        size_t dotPos = ts_cleaned.find('.');
+        objSecond = (dotPos != std::string::npos) ? ts_cleaned.substr(0, dotPos) : ts_cleaned;
+
+        // If this is the first object of a new second, process the *previous* second's data
+        if (objSecond != currentSecond) {
+            // Process previous second only if we have relevant data (horizontal anon or beacon)
+            if (!currentSecond.empty() && (hasHorizAnonData || foundTargetBeacon)) {
+
+                // --- Control Logic ---
+                if (enableControl && vehicle != nullptr && vehicle->control != nullptr && vehicle->subscribe != nullptr) {
+                    float velocity_x = 0.0f;
+                    float velocity_y = 0.0f; // Lateral not controlled in this mode
+                    float velocity_z = 0.0f;
+                    float yaw_rate = 0.0f;
+                    float current_height_agl = -1.0f; // Initialize AGL height
+
+                    // --- Horizontal/Yaw Control (Mirrors 'y') ---
+                    // Forward Velocity based on *horizontal* anon range
+                    if (hasHorizAnonData) {
+                        float distance_error = closestHorizAnonRange - targetDistance;
+                        if (std::abs(distance_error) > forward_dead_zone) {
+                            velocity_x = std::max(-max_forward_speed, std::min(Kp_forward * distance_error, max_forward_speed));
+                        }
+                    }
+                    // Yaw Rate based on *horizontal* anon azimuth
+                    if (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth)) {
+                        float yaw_azimuth_error = closestHorizAnonAzimuth; // Target is 0 azimuth relative to wall
+                        if (std::abs(yaw_azimuth_error) > yaw_dead_zone) {
+                            yaw_rate = Kp_yaw * yaw_azimuth_error;
+                            yaw_rate = std::max(-max_yaw_rate, std::min(yaw_rate, max_yaw_rate));
+                        }
+                    }
+
+                    // --- Vertical Cycle State Machine ---
+                    bool horizontal_dist_ok = hasHorizAnonData && (std::abs(closestHorizAnonRange - targetDistance) <= position_distance_tolerance);
+                    bool yaw_ok = hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) && (std::abs(closestHorizAnonAzimuth) <= position_azimuth_tolerance); // Using position_azimuth_tolerance for yaw alignment check
+                    bool beacon_range_ok = foundTargetBeacon && !std::isnan(current_beacon_range) && (std::abs(current_beacon_range - target_beacon_range) <= beacon_range_tolerance);
+
+                    switch (current_phase) {
+                        case VerticalCyclePhase::ALIGNING_INITIAL:
+                            velocity_z = 0.0f;
+                            if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl; }
+                            // Check if horizontal distance, yaw, AND beacon range are met
+                            if (horizontal_dist_ok && yaw_ok && beacon_range_ok) {
+                                std::cout << "[Vert Cycle Y] Initial position confirmed. Starting Cycle " << current_cycle + 1 << "." << std::endl; // Logged
+                                current_phase = VerticalCyclePhase::DESCENDING;
+                            }
+                            // Horizontal/Yaw control continues trying to align
+                            break;
+
+                        case VerticalCyclePhase::DESCENDING:
+                            current_height_agl = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>();
+                            if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl; } // Log beacon loss but continue descent
+                            // Check AGL height
+                            if (current_height_agl > vertical_cycle_target_agl + vertical_cycle_agl_tolerance) {
+                                velocity_z = -descent_speed;
+                            } else { // Reached target AGL
+                                velocity_z = 0.0f;
+                                std::cout << "[Vert Cycle Y] Target AGL reached (" << current_height_agl << "m). Starting ascent." << std::endl; // Logged
+                                current_phase = VerticalCyclePhase::ASCENDING;
+                            }
+                            // Horizontal/Yaw control continues
+                            break;
+
+                        case VerticalCyclePhase::ASCENDING:
+                            if (foundTargetBeacon && !std::isnan(current_beacon_range)) {
+                                // Check beacon range
+                                if (current_beacon_range > target_beacon_range + beacon_range_tolerance) {
+                                    velocity_z = ascent_speed;
+                                } else { // Reached target beacon range
+                                    velocity_z = 0.0f;
+                                    current_cycle++;
+                                    std::cout << "[Vert Cycle Y] Target beacon range reached (" << current_beacon_range << "m). Cycle " << current_cycle << " completed." << std::endl; // Logged
+                                    if (current_cycle >= vertical_cycle_count) {
+                                        current_phase = VerticalCyclePhase::COMPLETED_ALL;
+                                        std::cout << "[Vert Cycle Y] All cycles finished." << std::endl; // Logged
+                                    } else {
+                                        current_phase = VerticalCyclePhase::DESCENDING;
+                                        std::cout << "[Vert Cycle Y] Starting Cycle " << current_cycle + 1 << " descent." << std::endl; // Logged
+                                    }
+                                }
+                            } else { // Beacon lost during ascent
+                                 std::cout << "***BEACON NOT FOUND***" << std::endl;
+                                 velocity_z = 0.0f; // Stop ascending
+                                 std::cerr << "[Vert Cycle Y] Warning: Beacon lost during ascent. Hovering vertically." << std::endl; // Logged
+                            }
+                            // Horizontal/Yaw control continues
+                            break;
+
+                        case VerticalCyclePhase::COMPLETED_ALL:
+                            velocity_x = 0.0f;
+                            velocity_y = 0.0f;
+                            velocity_z = 0.0f;
+                            yaw_rate = 0.0f;
+                            // Remain in this state
+                            break;
+                    }
+
+                    // --- Send Command ---
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY |
+                                          DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
+                                          DJI::OSDK::Control::STABLE_ENABLE;
+                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, yaw_rate);
+
+                    // --- Logging ---
+                    std::cout << "[Vert Cycle Y] Ctl Status: Cycle=" << current_cycle << "/" << vertical_cycle_count << " Phase=" << getVerticalCyclePhaseName(current_phase) << "\n"
+                              << "  TgtWallDist=" << targetDistance << " | CurWallDist(Horiz)=" << (hasHorizAnonData ? std::to_string(closestHorizAnonRange) : "N/A") << "\n"
+                              << "  TgtWallAz=0" << " | CurWallAz(Horiz)=" << (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) ? std::to_string(closestHorizAnonAzimuth) : "N/A") << "\n"
+                              << "  TgtBeaconRng=" << target_beacon_range << " | CurBeaconRng=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                              << "  TgtAGL=" << vertical_cycle_target_agl << " | CurAGL=" << (current_height_agl >= 0.0f ? std::to_string(current_height_agl) : "N/A") << "\n"
+                              << "  Computed Vel(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ") | YawRate=" << yaw_rate << " deg/s"
+                              << std::endl;
+                    std::cout << "--------------------------------------" << std::endl;
+
+                    vehicle->control->flightCtrl(ctrlData);
+
+                } else if (hasHorizAnonData || foundTargetBeacon) { // Control disabled but we have data
+                     if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl;} // Log beacon loss even if control disabled
+                     std::cout << "[Vert Cycle Y] (Flight Control Disabled or Not Available) Cycle=" << current_cycle << "/" << vertical_cycle_count << " Phase=" << getVerticalCyclePhaseName(current_phase) << "\n"
+                               << "  TgtWallDist=" << targetDistance << " | CurWallDist(Horiz)=" << (hasHorizAnonData ? std::to_string(closestHorizAnonRange) : "N/A") << "\n"
+                               << "  TgtWallAz=0" << " | CurWallAz(Horiz)=" << (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) ? std::to_string(closestHorizAnonAzimuth) : "N/A") << "\n"
+                               << "  TgtBeaconRng=" << target_beacon_range << " | CurBeaconRng=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                               << "  TgtAGL=" << vertical_cycle_target_agl
+                               << std::endl;
+                     std::cout << "--------------------------------------" << std::endl;
+                }
+            } // End processing previous second
+
+            // --- Reset ALL state variables for the new second ---
+            currentSecond = objSecond;
+            lowestRange = std::numeric_limits<float>::max();
+            hasAnonData = false;
+            targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
+            current_beacon_range = std::numeric_limits<float>::quiet_NaN();
+            foundTargetBeacon = false;
+            closestHorizAnonRange = std::numeric_limits<float>::max();
+            closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN();
+            hasHorizAnonData = false;
+        } // End if (new second)
+
+        // --- Data Accumulation for the *current* second ---
+        if (obj.ID == TARGET_BEACON_ID) {
+            if (!foundTargetBeacon) {
+                 targetBeaconAzimuth = obj.Az;
+                 current_beacon_range = obj.Range;
+                 foundTargetBeacon = true;
+            }
+        }
+        else if (obj.ID.find("anon") != std::string::npos) {
+            hasAnonData = true;
+            if (obj.Range < lowestRange) lowestRange = obj.Range;
+
+            if (obj.sensor == "R_Az" || obj.sensor == "R_El_R_Az") {
+                 hasHorizAnonData = true;
+                 if (obj.Range < closestHorizAnonRange) {
+                     closestHorizAnonRange = obj.Range;
+                     closestHorizAnonAzimuth = obj.Az;
+                 }
+            }
+        }
+        if (stopProcessingFlag.load()) return;
+    } // End loop through objects
+}
+
+
+// Base logic for Vertical Cycle modes [3] (Mirrors 'b' horizontally)
+void extractBeaconAndWallData_Combined_VerticalCycle(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
+    static VerticalCyclePhase current_phase = VerticalCyclePhase::ALIGNING_INITIAL;
+    static int current_cycle = 0;
+    static std::thread::id current_thread_id;
+
+    // Reset state if thread restarts
+    if (current_thread_id != std::this_thread::get_id()) {
+        current_phase = VerticalCyclePhase::ALIGNING_INITIAL;
+        current_cycle = 0;
+        current_thread_id = std::this_thread::get_id();
+        std::cout << "[Vert Cycle B] State reset for new thread run." << std::endl; // Logged
+    }
+
+    // Accumulate data within the current second
+    for (const auto& obj : objects) {
+         if (stopProcessingFlag.load()) return; // Check stop flag during accumulation
+
+        // Extract second from timestamp
+        std::string ts_cleaned = obj.timestamp;
+        if (!ts_cleaned.empty() && ts_cleaned.front() == '"') ts_cleaned.erase(0, 1);
+        if (!ts_cleaned.empty() && ts_cleaned.back() == '"') ts_cleaned.pop_back();
+        std::string objSecond;
+        size_t dotPos = ts_cleaned.find('.');
+        objSecond = (dotPos != std::string::npos) ? ts_cleaned.substr(0, dotPos) : ts_cleaned;
+
+        // If this is the first object of a new second, process the *previous* second's data
+        if (objSecond != currentSecond) {
+            // Process previous second only if we have relevant data (horizontal anon or beacon)
+            if (!currentSecond.empty() && (hasHorizAnonData || foundTargetBeacon)) {
+
+                // --- Control Logic ---
+                if (enableControl && vehicle != nullptr && vehicle->control != nullptr && vehicle->subscribe != nullptr) {
+                    float velocity_x = 0.0f;
+                    float velocity_y = 0.0f;
+                    float velocity_z = 0.0f;
+                    float yaw_rate = 0.0f;
+                    float current_height_agl = -1.0f; // Initialize AGL height
+
+                    // --- Horizontal/Yaw Control (Mirrors 'b') ---
+                    // Forward Velocity based on *horizontal* anon range
+                    if (hasHorizAnonData) {
+                        float distance_error = closestHorizAnonRange - targetDistance;
+                        if (std::abs(distance_error) > forward_dead_zone) {
+                            velocity_x = std::max(-max_forward_speed, std::min(Kp_forward * distance_error, max_forward_speed));
+                        }
+                    }
+                    // Lateral Velocity based on *beacon* azimuth
+                    if (foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
+                        float lateral_azimuth_error = targetBeaconAzimuth - targetAzimuth;
+                        if (std::abs(lateral_azimuth_error) > azimuth_dead_zone) {
+                            velocity_y = std::max(-max_lateral_speed, std::min(Kp_lateral * lateral_azimuth_error, max_lateral_speed));
+                        }
+                    } else if (current_phase != VerticalCyclePhase::ALIGNING_INITIAL && current_phase != VerticalCyclePhase::COMPLETED_ALL) {
+                         std::cout << "***BEACON NOT FOUND***" << std::endl;
+                         velocity_y = 0.0f; // Stop lateral movement if beacon lost during active cycle
+                    }
+                    // Yaw Rate based on *horizontal* anon azimuth
+                    if (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth)) {
+                        float yaw_azimuth_error = closestHorizAnonAzimuth; // Target is 0 azimuth relative to wall
+                        if (std::abs(yaw_azimuth_error) > yaw_dead_zone) {
+                            yaw_rate = Kp_yaw * yaw_azimuth_error;
+                            yaw_rate = std::max(-max_yaw_rate, std::min(yaw_rate, max_yaw_rate));
+                        }
+                    }
+
+                    // --- Vertical Cycle State Machine ---
+                    bool horizontal_dist_ok = hasHorizAnonData && (std::abs(closestHorizAnonRange - targetDistance) <= position_distance_tolerance);
+                    bool lateral_beacon_az_ok = foundTargetBeacon && !std::isnan(targetBeaconAzimuth) && (std::abs(targetBeaconAzimuth - targetAzimuth) <= position_azimuth_tolerance);
+                    bool yaw_ok = hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) && (std::abs(closestHorizAnonAzimuth) <= position_azimuth_tolerance); // Using position_azimuth_tolerance for yaw alignment check
+                    bool beacon_range_ok = foundTargetBeacon && !std::isnan(current_beacon_range) && (std::abs(current_beacon_range - target_beacon_range) <= beacon_range_tolerance);
+
+                    switch (current_phase) {
+                        case VerticalCyclePhase::ALIGNING_INITIAL:
+                            velocity_z = 0.0f;
+                            if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl; }
+                            // Check if horizontal distance, lateral beacon azimuth, yaw, AND beacon range are met
+                            if (horizontal_dist_ok && lateral_beacon_az_ok && yaw_ok && beacon_range_ok) {
+                                std::cout << "[Vert Cycle B] Initial position confirmed. Starting Cycle " << current_cycle + 1 << "." << std::endl; // Logged
+                                current_phase = VerticalCyclePhase::DESCENDING;
+                            }
+                            // Horizontal/Yaw control continues trying to align
+                            break;
+
+                        case VerticalCyclePhase::DESCENDING:
+                            current_height_agl = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>();
+                            if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl; } // Log beacon loss but continue descent
+                            // Check AGL height
+                            if (current_height_agl > vertical_cycle_target_agl + vertical_cycle_agl_tolerance) {
+                                velocity_z = -descent_speed;
+                            } else { // Reached target AGL
+                                velocity_z = 0.0f;
+                                std::cout << "[Vert Cycle B] Target AGL reached (" << current_height_agl << "m). Starting ascent." << std::endl; // Logged
+                                current_phase = VerticalCyclePhase::ASCENDING;
+                            }
+                            // Horizontal/Yaw control continues (except lateral if beacon lost)
+                            break;
+
+                        case VerticalCyclePhase::ASCENDING:
+                            if (foundTargetBeacon && !std::isnan(current_beacon_range)) {
+                                // Check beacon range
+                                if (current_beacon_range > target_beacon_range + beacon_range_tolerance) {
+                                    velocity_z = ascent_speed;
+                                } else { // Reached target beacon range
+                                    velocity_z = 0.0f;
+                                    current_cycle++;
+                                    std::cout << "[Vert Cycle B] Target beacon range reached (" << current_beacon_range << "m). Cycle " << current_cycle << " completed." << std::endl; // Logged
+                                    if (current_cycle >= vertical_cycle_count) {
+                                        current_phase = VerticalCyclePhase::COMPLETED_ALL;
+                                        std::cout << "[Vert Cycle B] All cycles finished." << std::endl; // Logged
+                                    } else {
+                                        current_phase = VerticalCyclePhase::DESCENDING;
+                                        std::cout << "[Vert Cycle B] Starting Cycle " << current_cycle + 1 << " descent." << std::endl; // Logged
+                                    }
+                                }
+                            } else { // Beacon lost during ascent
+                                 std::cout << "***BEACON NOT FOUND***" << std::endl;
+                                 velocity_z = 0.0f; // Stop ascending
+                                 velocity_y = 0.0f; // Stop lateral movement as well
+                                 std::cerr << "[Vert Cycle B] Warning: Beacon lost during ascent. Hovering." << std::endl; // Logged
+                            }
+                            // Horizontal/Yaw control continues (except lateral if beacon lost)
+                            break;
+
+                        case VerticalCyclePhase::COMPLETED_ALL:
+                            velocity_x = 0.0f;
+                            velocity_y = 0.0f;
+                            velocity_z = 0.0f;
+                            yaw_rate = 0.0f;
+                            // Remain in this state
+                            break;
+                    }
+
+                    // --- Send Command ---
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY |
+                                          DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
+                                          DJI::OSDK::Control::STABLE_ENABLE;
+                    DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, yaw_rate);
+
+                    // --- Logging ---
+                    std::cout << "[Vert Cycle B] Ctl Status: Cycle=" << current_cycle << "/" << vertical_cycle_count << " Phase=" << getVerticalCyclePhaseName(current_phase) << "\n"
+                              << "  TgtWallDist=" << targetDistance << " | CurWallDist(Horiz)=" << (hasHorizAnonData ? std::to_string(closestHorizAnonRange) : "N/A") << "\n"
+                              << "  TgtBeaconAz=" << targetAzimuth << " | CurBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                              << "  TgtWallAz=0" << " | CurWallAz(Horiz)=" << (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) ? std::to_string(closestHorizAnonAzimuth) : "N/A") << "\n"
+                              << "  TgtBeaconRng=" << target_beacon_range << " | CurBeaconRng=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                              << "  TgtAGL=" << vertical_cycle_target_agl << " | CurAGL=" << (current_height_agl >= 0.0f ? std::to_string(current_height_agl) : "N/A") << "\n"
+                              << "  Computed Vel(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ") | YawRate=" << yaw_rate << " deg/s"
+                              << std::endl;
+                    std::cout << "--------------------------------------" << std::endl;
+
+                    vehicle->control->flightCtrl(ctrlData);
+
+                } else if (hasHorizAnonData || foundTargetBeacon) { // Control disabled but we have data
+                     if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl;} // Log beacon loss even if control disabled
+                     std::cout << "[Vert Cycle B] (Flight Control Disabled or Not Available) Cycle=" << current_cycle << "/" << vertical_cycle_count << " Phase=" << getVerticalCyclePhaseName(current_phase) << "\n"
+                               << "  TgtWallDist=" << targetDistance << " | CurWallDist(Horiz)=" << (hasHorizAnonData ? std::to_string(closestHorizAnonRange) : "N/A") << "\n"
+                               << "  TgtBeaconAz=" << targetAzimuth << " | CurBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
+                               << "  TgtWallAz=0" << " | CurWallAz(Horiz)=" << (hasHorizAnonData && !std::isnan(closestHorizAnonAzimuth) ? std::to_string(closestHorizAnonAzimuth) : "N/A") << "\n"
+                               << "  TgtBeaconRng=" << target_beacon_range << " | CurBeaconRng=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
+                               << "  TgtAGL=" << vertical_cycle_target_agl
+                               << std::endl;
+                     std::cout << "--------------------------------------" << std::endl;
+                }
+            } // End processing previous second
+
+            // --- Reset ALL state variables for the new second ---
+            currentSecond = objSecond;
+            lowestRange = std::numeric_limits<float>::max();
+            hasAnonData = false;
+            targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
+            current_beacon_range = std::numeric_limits<float>::quiet_NaN();
+            foundTargetBeacon = false;
+            closestHorizAnonRange = std::numeric_limits<float>::max();
+            closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN();
+            hasHorizAnonData = false;
+        } // End if (new second)
+
+        // --- Data Accumulation for the *current* second ---
+        if (obj.ID == TARGET_BEACON_ID) {
+            if (!foundTargetBeacon) {
+                 targetBeaconAzimuth = obj.Az;
+                 current_beacon_range = obj.Range;
+                 foundTargetBeacon = true;
+            }
+        }
+        else if (obj.ID.find("anon") != std::string::npos) {
+            hasAnonData = true;
+            if (obj.Range < lowestRange) lowestRange = obj.Range;
+
+            if (obj.sensor == "R_Az" || obj.sensor == "R_El_R_Az") {
+                 hasHorizAnonData = true;
+                 if (obj.Range < closestHorizAnonRange) {
+                     closestHorizAnonRange = obj.Range;
+                     closestHorizAnonAzimuth = obj.Az;
+                 }
+            }
+        }
+        if (stopProcessingFlag.load()) return;
+    } // End loop through objects
+}
+
+// --- END NEW VERTICAL CYCLE FUNCTIONS ---
 
 
 // Parses JSON radar data
@@ -844,605 +1314,4 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
 
         for (const auto& obj : jsonFrame["objects"]) {
             if (!obj.is_object()) {
-                std::cerr << "Skipping non-object item in 'objects' array." << std::endl; // Logged
-                continue;
-            }
-            RadarObject radarObj;
-            radarObj.timestamp = obj.value("timestamp", json(nullptr)).dump();
-            radarObj.sensor = obj.value("sensor", "N/A");
-            radarObj.src = obj.value("src", "N/A");
-            radarObj.X = obj.value("X", 0.0f); radarObj.Y = obj.value("Y", 0.0f); radarObj.Z = obj.value("Z", 0.0f);
-            radarObj.Xdir = obj.value("Xdir", 0.0f); radarObj.Ydir = obj.value("Ydir", 0.0f); radarObj.Zdir = obj.value("Zdir", 0.0f);
-            radarObj.Range = obj.value("Range", 0.0f); radarObj.RangeRate = obj.value("RangeRate", 0.0f);
-            radarObj.Pwr = obj.value("Pwr", 0.0f); radarObj.Az = obj.value("Az", 0.0f); radarObj.El = obj.value("El", 0.0f);
-            if (obj.contains("ID") && obj["ID"].is_string()) radarObj.ID = obj.value("ID", "N/A");
-            else if (obj.contains("ID")) radarObj.ID = obj["ID"].dump(); else radarObj.ID = "N/A";
-            radarObj.Xsize = obj.value("Xsize", 0.0f); radarObj.Ysize = obj.value("Ysize", 0.0f); radarObj.Zsize = obj.value("Zsize", 0.0f);
-            radarObj.Conf = obj.value("Conf", 0.0f);
-            radarObjects.push_back(radarObj);
-        }
-    } catch (const json::parse_error& e) {
-        std::cerr << "JSON Parsing Error: " << e.what() << " at offset " << e.byte << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl; // Logged
-        return {};
-    } catch (const json::type_error& e) {
-        std::cerr << "JSON Type Error: " << e.what() << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl; // Logged
-        return {};
-    }
-    return radarObjects;
-}
-
-// Runs the python bridge script
-void runPythonBridge(const std::string& scriptName) {
-    std::cout << "Starting Python bridge (" << scriptName << ")..." << std::endl; // Logged
-    if (std::system(("python3 " + scriptName + " &").c_str()) != 0) {
-        std::cerr << "Failed to start Python bridge script '" << scriptName << "'." << std::endl; // Logged
-    }
-    std::this_thread::sleep_for(std::chrono::seconds(3));
-    std::cout << "Python bridge potentially started." << std::endl; // Logged
-}
-
-// Stops the python bridge script
-void stopPythonBridge(const std::string& scriptName) {
-    std::cout << "Stopping Python bridge (" << scriptName << ")..." << std::endl; // Logged
-    std::system(("pkill -f " + scriptName).c_str()); // Ignore result
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    std::cout << "Sent SIGTERM to " << scriptName << "." << std::endl; // Logged
-}
-
-// Connects to the python bridge via TCP
-bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& socket) {
-    tcp::resolver resolver(io_context);
-    int retries = 5;
-    while (retries-- > 0) {
-        try {
-            if(socket.is_open()) { socket.close(); } // Simpler close
-            auto endpoints = resolver.resolve("127.0.0.1", "5000");
-            boost::system::error_code ec;
-            boost::asio::connect(socket, endpoints, ec);
-            if (!ec) { std::cout << "Connected to Python bridge." << std::endl; return true; } // Logged
-            else { std::cerr << "Connection attempt failed: " << ec.message() << std::endl; } // Logged
-        } catch (const std::exception& e) {
-            std::cerr << "Exception during connection attempt: " << e.what() << std::endl; // Logged
-        }
-        if(retries > 0 && !stopProcessingFlag.load()) {
-             std::cout << "Retrying connection in 2 seconds... (" << retries << " attempts left)" << std::endl; // Logged
-             for (int i = 0; i < 2 && !stopProcessingFlag.load(); ++i) std::this_thread::sleep_for(std::chrono::seconds(1));
-             if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; } // Logged
-        } else if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; } // Logged
-    }
-     std::cerr << "Failed to connect to Python bridge after multiple attempts." << std::endl; // Logged
-     return false;
-}
-
-// Placeholder Callbacks
-void ObtainJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) { /* Unused */ }
-void ReleaseJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) { /* Unused */ }
-
-// Enum for processing modes
-enum class ProcessingMode {
-    WALL_FOLLOW,
-    PROCESS_FULL,
-    PROCESS_MINIMAL,
-    WALL_FOLLOW_FULL_TEST,        // Mode for Simple Vertical Test [x]
-    WALL_FOLLOW_COMPLEX_VERTICAL // Mode for Complex Vertical Test [c]
-};
-
-// Processing loop function - No reconnection, releases authority on exit
-void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle, bool enableControlCmd, ProcessingMode mode) {
-    std::cout << "Processing thread started. Bridge: " << bridgeScriptName << ", Control Enabled: " << std::boolalpha << enableControlCmd << ", Mode: " << static_cast<int>(mode) << std::endl; // Logged
-    int functionTimeout = 1;
-
-    runPythonBridge(bridgeScriptName);
-    boost::asio::io_context io_context;
-    tcp::socket socket(io_context);
-
-    if (!connectToPythonBridge(io_context, socket)) {
-        std::cerr << "Processing thread: Initial connection failed. Exiting thread." << std::endl; // Logged
-        stopPythonBridge(bridgeScriptName);
-        if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
-            std::cout << "[Processing Thread] Releasing control authority (initial connection fail)..." << std::endl; // Logged
-            ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
-            if (ACK::getError(releaseAck)) ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority"); // Logged via ACK
-            else std::cout << "[Processing Thread] Control authority released." << std::endl; // Logged
-        }
-        return; // Exit thread
-    }
-
-    std::cout << "Processing thread: Connection successful. Reading data stream..." << std::endl; // Logged
-    std::string received_data_buffer;
-    std::array<char, 4096> read_buffer;
-    bool connection_error_occurred = false;
-
-    // Reset state variables used in processing functions
-    currentSecond = ""; lowestRange = std::numeric_limits<float>::max(); hasAnonData = false;
-    targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
-    current_beacon_range = std::numeric_limits<float>::quiet_NaN();
-    foundTargetBeacon = false;
-
-    while (!stopProcessingFlag.load()) {
-        boost::system::error_code error;
-        size_t len = socket.read_some(boost::asio::buffer(read_buffer), error);
-
-        if (error) { // Handle read error
-            if (error == boost::asio::error::eof) std::cerr << "Processing thread: Connection closed by Python bridge (EOF)." << std::endl; // Logged
-            else std::cerr << "Processing thread: Error reading from socket: " << error.message() << std::endl; // Logged
-            connection_error_occurred = true;
-            break;
-        }
-
-        if (len > 0) { // Process received data
-            received_data_buffer.append(read_buffer.data(), len);
-            size_t newline_pos;
-            while ((newline_pos = received_data_buffer.find('\n')) != std::string::npos) {
-                std::string jsonData = received_data_buffer.substr(0, newline_pos);
-                received_data_buffer.erase(0, newline_pos + 1);
-                if (stopProcessingFlag.load()) break;
-                if (!jsonData.empty()) {
-                    try {
-                        auto radarObjects = parseRadarData(jsonData);
-                        if (!radarObjects.empty()) {
-                            // --- Updated Switch Case ---
-                            switch (mode) {
-                                case ProcessingMode::WALL_FOLLOW:
-                                    extractBeaconAndWallData(radarObjects, vehicle, enableControlCmd);
-                                    break;
-                                case ProcessingMode::PROCESS_FULL:
-                                    displayRadarObjects(radarObjects);
-                                    break;
-                                case ProcessingMode::PROCESS_MINIMAL:
-                                    displayRadarObjectsMinimal(radarObjects);
-                                    break;
-                                case ProcessingMode::WALL_FOLLOW_FULL_TEST: // Simple Vertical
-                                    extractBeaconAndWallData_FullTest(radarObjects, vehicle, enableControlCmd);
-                                    break;
-                                case ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL: // Complex Vertical
-                                    extractBeaconAndWallData_ComplexVertical(radarObjects, vehicle, enableControlCmd);
-                                    break;
-                            }
-                        }
-                    } catch (const std::exception& e) {
-                         std::cerr << "Error processing data: " << e.what() << "\nSnippet: [" << jsonData.substr(0, 100) << "...]" << std::endl; // Logged
-                    }
-                }
-            }
-            if (stopProcessingFlag.load()) break;
-        } else {
-             std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Brief pause if no data
-        }
-    }
-
-    // --- Cleanup ---
-    if (stopProcessingFlag.load()) std::cout << "[Processing Thread] Stop requested manually." << std::endl; // Logged
-    else if (connection_error_occurred) std::cout << "[Processing Thread] Exiting due to connection error." << std::endl; // Logged
-    else std::cout << "[Processing Thread] Data stream ended." << std::endl; // Logged
-
-    if (socket.is_open()) { socket.close(); }
-    stopPythonBridge(bridgeScriptName);
-
-    // Release Control Authority if enabled
-    if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
-        std::cout << "[Processing Thread] Sending final zero velocity command..." << std::endl; // Logged
-        uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE; // Truncated
-        DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
-        vehicle->control->flightCtrl(stopData);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        std::cout << "[Processing Thread] Releasing control authority..." << std::endl; // Logged
-        ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
-        if (ACK::getError(releaseAck)) {
-             ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority (on exit)"); // Logged via ACK
-             std::cerr << "[Processing Thread] Warning: Failed to release control authority on exit." << std::endl; // Logged
-        } else {
-             std::cout << "[Processing Thread] Control authority released." << std::endl; // Logged
-        }
-    }
-    std::cout << "Processing thread finished." << std::endl; // Logged
-}
-
-// Helper function to get mode name string
-std::string getModeName(uint8_t mode) {
-    switch(mode) {
-        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_MANUAL_CTRL: return "MANUAL_CTRL";
-        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_ATTITUDE: return "ATTITUDE";
-        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_P_GPS: return "P_GPS";
-        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_NAVI_SDK_CTRL: return "NAVI_SDK_CTRL";
-        case 31: return "Mode 31";
-        default: return "Other (" + std::to_string(mode) + ")";
-    }
-}
-
-// Background thread function for monitoring
-void monitoringLoopFunction(Vehicle* vehicle) {
-    std::cout << "[Monitoring] Thread started." << std::endl; // Logged
-    bool telemetry_timed_out = false;
-    bool warned_unexpected_status = false;
-    uint8_t previous_flight_status = DJI::OSDK::VehicleStatus::FlightStatus::STOPED;
-    time_t last_valid_poll_time = 0;
-    bool in_sdk_control_mode = false;
-    bool warned_not_in_sdk_mode = false;
-    const uint8_t EXPECTED_SDK_MODE = DJI::OSDK::VehicleStatus::DisplayMode::MODE_NAVI_SDK_CTRL;
-
-    while (!stopMonitoringFlag.load()) {
-        if (vehicle == nullptr || vehicle->subscribe == nullptr) {
-             if (!telemetry_timed_out) {
-                 std::cerr << "\n**** MONITORING ERROR: Vehicle/subscribe object null. Stopping. ****" << std::endl << std::endl; // Logged
-                 telemetry_timed_out = true;
-             }
-             break;
-        }
-
-        uint8_t current_flight_status = vehicle->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_FLIGHT>();
-        uint8_t current_display_mode = vehicle->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_DISPLAYMODE>();
-        bool valid_poll = (current_flight_status <= DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR);
-
-        if (valid_poll) {
-            time_t current_time = std::time(nullptr);
-            last_valid_poll_time = current_time;
-            if (telemetry_timed_out) {
-                 std::cout << "[Monitoring] Telemetry poll recovered." << std::endl; // Logged
-                 telemetry_timed_out = false;
-            }
-
-            // Check Flight Status Change
-            if (current_flight_status != DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR) {
-                if ( (previous_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR) &&
-                     (current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::ON_GROUND || current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::STOPED) &&
-                     !warned_unexpected_status) {
-                     std::cerr << "\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " << (int)current_flight_status << ". ****" << std::endl << std::endl; // Logged
-                     warned_unexpected_status = true;
-                }
-            } else {
-                 warned_unexpected_status = false;
-            }
-            previous_flight_status = current_flight_status;
-
-            // Check Expected SDK Mode
-            bool is_expected_mode = (current_display_mode == EXPECTED_SDK_MODE);
-            if (is_expected_mode) {
-                if (!in_sdk_control_mode) {
-                    std::cout << "\n**** MONITORING INFO: Entered SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << " / " << (int)EXPECTED_SDK_MODE << ") ****" << std::endl << std::endl; // Logged
-                    in_sdk_control_mode = true;
-                    warned_not_in_sdk_mode = false;
-                }
-            } else { // Not in expected mode
-                 if (in_sdk_control_mode || !warned_not_in_sdk_mode) {
-                      // Check if processing thread is stopping/stopped
-                      if (!stopProcessingFlag.load() && processingThread.joinable()) {
-                          std::string current_mode_name = getModeName(current_display_mode);
-                          std::cerr << "\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << "). Current: " << current_mode_name << " (" << (int)current_display_mode << ") ****" << std::endl << std::endl; // Logged (Truncated)
-                          warned_not_in_sdk_mode = true;
-                      }
-                      in_sdk_control_mode = false;
-                 }
-            }
-        } else { // Invalid poll
-            if (!telemetry_timed_out) {
-                 std::cerr << "\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" << (int)current_flight_status << "). ****" << std::endl << std::endl; // Logged
-                 telemetry_timed_out = true;
-            }
-        }
-
-        // Check Telemetry Timeout
-        time_t current_time_for_timeout_check = std::time(nullptr);
-        if (last_valid_poll_time > 0 && (current_time_for_timeout_check - last_valid_poll_time > TELEMETRY_TIMEOUT_SECONDS)) {
-            if (!telemetry_timed_out) {
-                std::cerr << "\n**** MONITORING TIMEOUT: No valid telemetry for over " << TELEMETRY_TIMEOUT_SECONDS << " seconds. ****" << std::endl << std::endl; // Logged
-                telemetry_timed_out = true;
-            }
-        } else if (last_valid_poll_time == 0) { // Check if never received first poll
-             static time_t start_time = 0; if (start_time == 0) start_time = current_time_for_timeout_check;
-             if (current_time_for_timeout_check - start_time > TELEMETRY_TIMEOUT_SECONDS * 2) {
-                  if (!telemetry_timed_out) {
-                       std::cerr << "\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " << TELEMETRY_TIMEOUT_SECONDS * 2 << " seconds. ****" << std::endl << std::endl; // Logged
-                       telemetry_timed_out = true;
-                  }
-             }
-        }
-
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-    std::cout << "[Monitoring] Thread finished." << std::endl; // Logged
-}
-
-
-int main(int argc, char** argv) {
-    // --- Instantiate LogRedirector early in main ---
-    // This object's lifetime controls the redirection.
-    // It will automatically restore streams when it goes out of scope at the end of main.
-    LogRedirector logger("run_log.txt");
-
-    loadPreferences(); // Load preferences first
-
-    // --- Mode Selection Removed - Hardcoded to Live Mode ---
-    bool enableFlightControl = true;
-    // defaultPythonBridgeScript is already set globally
-
-    std::cout << "Starting in Live Mode. Flight control enabled. Default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
-
-
-    // --- OSDK Initialization ---
-    int functionTimeout = 1;
-    Vehicle* vehicle = nullptr;
-    FlightSample* flightSample = nullptr;
-    LinuxSetup* linuxEnvironment = nullptr;
-    int telemetrySubscriptionFrequency = 1;
-    int pkgIndex = 0;
-    bool monitoringEnabled = false;
-
-    if (enableFlightControl) { // This will always be true now unless OSDK init fails
-        std::cout << "Initializing DJI OSDK..." << std::endl; // Logged
-        linuxEnvironment = new LinuxSetup(argc, argv);
-        vehicle = linuxEnvironment->getVehicle();
-        if (vehicle == nullptr || vehicle->control == nullptr || vehicle->subscribe == nullptr) {
-            std::cerr << "ERROR: Vehicle not initialized or interfaces unavailable. Disabling flight control." << std::endl; // Logged
-             if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
-             vehicle = nullptr;
-             enableFlightControl = false; // Fallback in case of init error
-             std::cout << "OSDK Initialization Failed. Flight control disabled." << std::endl; // Logged
-        } else { // OSDK Init seems OK
-            std::cout << "Attempting to obtain Control Authority..." << std::endl; // Logged
-            ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
-            if (ACK::getError(ctrlAuthAck)) {
-                 ACK::getErrorCodeMessage(ctrlAuthAck, __func__); // Logged via ACK
-                 std::cerr << "Failed to obtain control authority. Disabling flight control." << std::endl; // Logged
-                 if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
-                 vehicle = nullptr;
-                 enableFlightControl = false; // Fallback
-                 std::cout << "Obtaining Control Authority Failed. Flight control disabled." << std::endl; // Logged
-            } else { // Authority Obtained
-                 std::cout << "Obtained Control Authority." << std::endl; // Logged
-                 flightSample = new FlightSample(vehicle);
-                 std::cout << "OSDK Initialized and Flight Sample created." << std::endl; // Logged
-
-                 // --- Setup Telemetry Subscription for Monitoring (ADDED HEIGHT) ---
-                 std::cout << "Setting up Telemetry Subscription for Monitoring..." << std::endl; // Logged
-                 ACK::ErrorCode subscribeAck = vehicle->subscribe->verify(functionTimeout);
-                 if (ACK::getError(subscribeAck)) {
-                      ACK::getErrorCodeMessage(subscribeAck, __func__); // Logged via ACK
-                      std::cerr << "Error verifying subscription package list. Monitoring will be disabled." << std::endl; // Logged
-                 } else {
-                      // --- ADDED Telemetry::TOPIC_HEIGHT_FUSION ---
-                      Telemetry::TopicName topicList[] = {
-                          Telemetry::TOPIC_STATUS_FLIGHT,
-                          Telemetry::TOPIC_STATUS_DISPLAYMODE,
-                          Telemetry::TOPIC_HEIGHT_FUSION
-                      };
-                      int numTopic = sizeof(topicList) / sizeof(topicList[0]);
-                      bool topicStatus = vehicle->subscribe->initPackageFromTopicList(pkgIndex, numTopic, topicList,
-                                                                                       false, telemetrySubscriptionFrequency);
-
-                      if (topicStatus) {
-                            std::cout << "Successfully initialized package " << pkgIndex << " with Flight Status, Display Mode, and Height topics." << std::endl; // Logged Updated msg
-                            ACK::ErrorCode startAck = vehicle->subscribe->startPackage(pkgIndex, functionTimeout);
-                            if (ACK::getError(startAck)) {
-                                 ACK::getErrorCodeMessage(startAck, "startPackage"); // Logged via ACK
-                                 std::cerr << "Error starting subscription package " << pkgIndex << ". Monitoring will be disabled." << std::endl; // Logged
-                                 vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
-                            } else {
-                                 std::cout << "Successfully started package " << pkgIndex << "." << std::endl; // Logged
-                                 std::cout << "Starting monitoring thread..." << std::endl; // Logged
-                                 stopMonitoringFlag.store(false);
-                                 monitoringThread = std::thread(monitoringLoopFunction, vehicle);
-                                 monitoringEnabled = true;
-                                 std::cout << "[Main] Monitoring thread launched." << std::endl; // Logged
-                            }
-                      } else {
-                           std::cerr << "Error initializing package " << pkgIndex << " from topic list. Monitoring will be disabled." << std::endl; // Logged
-                      }
-                 }
-            }
-        }
-    }
-
-    std::cout << "INFO: Flight control is " << (enableFlightControl ? "ENABLED" : "DISABLED") << ". Proceeding to main menu." << std::endl; // Logged Keep this info line
-
-    // --- Main Command Loop ---
-    bool keepRunning = true;
-    while (keepRunning) {
-        // --- Updated Menu Display ---
-        std::cout << "\n--- Main Menu ---\n" // Logged
-                  << (enableFlightControl ? "| [t] Monitored Takeoff                     |\n| [w] Start Wall+Beacon Following (Default) |\n| [h] Start Wall+Beacon Following (TEST)    |\n| [x] Simple Vertical Test                  |\n| [c] Complex Vertical Test                 |\n" // Logged (Truncated)
-                                          : "| [t] Takeoff (DISABLED)                    |\n| [w] Wall/Beacon Following (No Control)    |\n| [h] Wall/Beacon Following (No Control)    |\n| [x] Simple Vertical Test (No Control)     |\n| [c] Complex Vertical Test (No Control)    |\n") // Logged (Truncated)
-                  << "| [e] Process Full Radar (No Control)       |\n" // Logged
-                  << "| [f] Process Minimal Radar (No Control)    |\n" // Logged
-                  << "| [q] Quit                                  |\n" // Logged
-                  << "---------------------------------------------\n" // Logged
-                  << "Enter command: "; // Logged (No endl here)
-
-        std::string lineInput; char inputChar = 0;
-        if (std::getline(std::cin, lineInput)) {
-             std::cout << lineInput << std::endl; // Echo input to log
-             if (!lineInput.empty()) inputChar = lineInput[0];
-        }
-        else { inputChar = 'q'; if (std::cin.eof()) std::cout << "\nEOF detected. "; std::cout << "Exiting." << std::endl; } // Logged
-
-        // Stop processing thread if starting new task ('w','e','h','f','x','c') or quitting ('q')
-         if (strchr("wehfx", inputChar) != nullptr || inputChar == 'c' || inputChar == 'q') { // Added 'c'
-             if (processingThread.joinable()) {
-                 std::cout << "Signalling processing thread to stop..." << std::endl; // Logged
-                 stopProcessingFlag.store(true); processingThread.join();
-                 std::cout << "Processing thread finished." << std::endl; // Logged
-                 stopProcessingFlag.store(false);
-             }
-         }
-         // Stop monitoring thread on quit
-         if (inputChar == 'q' && monitoringThread.joinable()) {
-             std::cout << "Signalling monitoring thread to stop..." << std::endl; // Logged
-             stopMonitoringFlag.store(true); monitoringThread.join();
-             std::cout << "Monitoring thread finished." << std::endl; // Logged
-             stopMonitoringFlag.store(false); monitoringEnabled = false;
-         }
-
-        // --- Process Command ---
-        switch (inputChar) {
-            case 't': // Takeoff
-                if (enableFlightControl && flightSample && vehicle && vehicle->control) {
-                    std::cout << "Attempting to obtain Control Authority for Takeoff..." << std::endl; // Logged
-                    ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
-                    if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Takeoff obtainCtrlAuthority"); // Logged via ACK
-                         std::cerr << "Failed to obtain control authority for takeoff." << std::endl; // Logged
-                         break;
-                    } else {
-                         std::cout << "Obtained Control Authority for Takeoff." << std::endl; // Logged
-                         flightSample->monitoredTakeoff(); // Internal logging exists
-                    }
-                } else {
-                     std::cout << "Flight control not enabled or available." << std::endl; // Logged
-                }
-                break;
-
-             case 'w': // Wall Following (Default)
-             case 'h': { // Wall Following (TEST)
-                 std::string bridge = (inputChar == 'w') ? defaultPythonBridgeScript : "python_bridge_LOCAL.py";
-                 bool useControl = (inputChar == 'w') ? enableFlightControl : true;
-                 if (inputChar == 'h' && !enableFlightControl) { std::cout << "Error: Flight control must be enabled for TEST control." << std::endl; break; } // Logged
-
-                 std::cout << "Starting Wall+Beacon Following using bridge: " << bridge << std::endl; // Logged
-                 if (useControl && vehicle && vehicle->control) {
-                     std::cout << "Attempting to obtain Control Authority for Wall Following..." << std::endl; // Logged
-                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
-                     if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Wall Following obtainCtrlAuthority"); // Logged via ACK
-                         std::cerr << "Failed to obtain control authority. Cannot start with control." << std::endl; // Logged
-                         break;
-                     } else {
-                         std::cout << "Obtained Control Authority for Wall Following." << std::endl; // Logged
-                     }
-                 } else if (useControl) {
-                      std::cerr << "Error: Cannot start with control as OSDK is not properly initialized." << std::endl; // Logged
-                      break;
-                 }
-                 stopProcessingFlag.store(false);
-                 processingThread = std::thread(processingLoopFunction, bridge, vehicle, useControl, ProcessingMode::WALL_FOLLOW);
-                 break;
-             }
-             case 'x': { // Simple Vertical Test
-                 std::cout << "Starting Simple Vertical Test using default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
-                 if (enableFlightControl && vehicle && vehicle->control && vehicle->subscribe) {
-                     std::cout << "Attempting to obtain Control Authority for Simple Vertical Test..." << std::endl; // Logged
-                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
-                     if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Simple Vertical Test obtainCtrlAuthority"); // Logged via ACK
-                         std::cerr << "Failed to obtain control authority. Cannot start Simple Vertical Test with control." << std::endl; // Logged
-                         break;
-                     } else {
-                         std::cout << "Obtained Control Authority for Simple Vertical Test." << std::endl; // Logged
-                     }
-                 } else if (enableFlightControl) {
-                     std::string reason = (!vehicle || !vehicle->control) ? "OSDK control" : "OSDK subscribe";
-                     std::cerr << "Error: Cannot start Simple Vertical Test with control as " << reason << " is not properly initialized." << std::endl; // Logged
-                     break;
-                 }
-                 stopProcessingFlag.store(false);
-                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW_FULL_TEST);
-                 break;
-            }
-             case 'c': { // Complex Vertical Test
-                 std::cout << "Starting Complex Vertical Test using default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
-                 if (enableFlightControl && vehicle && vehicle->control && vehicle->subscribe) {
-                     std::cout << "Attempting to obtain Control Authority for Complex Vertical Test..." << std::endl; // Logged
-                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
-                     if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Complex Vertical Test obtainCtrlAuthority"); // Logged via ACK
-                         std::cerr << "Failed to obtain control authority. Cannot start Complex Vertical Test with control." << std::endl; // Logged
-                         break;
-                     } else {
-                         std::cout << "Obtained Control Authority for Complex Vertical Test." << std::endl; // Logged
-                     }
-                 } else if (enableFlightControl) {
-                     std::string reason = (!vehicle || !vehicle->control) ? "OSDK control" : "OSDK subscribe";
-                     std::cerr << "Error: Cannot start Complex Vertical Test with control as " << reason << " is not properly initialized." << std::endl; // Logged
-                     break;
-                 }
-                 stopProcessingFlag.store(false);
-                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW_COMPLEX_VERTICAL);
-                 break;
-            }
-             case 'e': // Process Full
-             case 'f': { // Process Minimal
-                 ProcessingMode procMode = (inputChar == 'e') ? ProcessingMode::PROCESS_FULL : ProcessingMode::PROCESS_MINIMAL;
-                 std::cout << "Starting Radar Data processing (No Control) using bridge: " << defaultPythonBridgeScript << std::endl; // Logged
-                 stopProcessingFlag.store(false);
-                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, procMode);
-                 break;
-             }
-
-            case 'q': { // Quit
-                std::cout << "Exiting..." << std::endl; // Logged
-                // Stop threads handled above
-
-                if (monitoringEnabled && vehicle && vehicle->subscribe) {
-                    std::cout << "Unsubscribing from telemetry..." << std::endl; // Logged
-                    ACK::ErrorCode statusAck = vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
-                    if(ACK::getError(statusAck)) {
-                        ACK::getErrorCodeMessage(statusAck, __func__); // Logged via ACK
-                        std::cerr << "Warning: Failed to unsubscribe from telemetry package " << pkgIndex << "." << std::endl; // Logged
-                    } else {
-                        std::cout << "Telemetry unsubscribed." << std::endl; // Logged
-                    }
-                }
-
-                if (enableFlightControl && vehicle && vehicle->control) {
-                    std::cout << "Sending Zero Velocity command before final release..." << std::endl; // Logged
-                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE; // Truncated
-                    DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
-                    vehicle->control->flightCtrl(stopData);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-                    std::cout << "Releasing Control Authority on Quit..." << std::endl; // Logged
-                    ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
-                     if (ACK::getError(releaseAck)) {
-                         ACK::getErrorCodeMessage(releaseAck, "Quit releaseCtrlAuthority"); // Logged via ACK
-                         std::cerr << "Warning: Failed to release control authority on quit." << std::endl; // Logged
-                     } else {
-                         std::cout << "Control Authority Released on Quit." << std::endl; // Logged
-                     }
-                }
-                 if (linuxEnvironment) {
-                    delete linuxEnvironment; linuxEnvironment = nullptr;
-                 }
-                 // Avoid deleting flightSample if it wasn't created or if linuxEnvironment owns it (depends on LinuxSetup implementation)
-                 // Assuming flightSample is created independently and needs deletion if it exists
-                 if (flightSample) {
-                    delete flightSample; flightSample = nullptr;
-                 }
-                 vehicle = nullptr; // vehicle pointer belongs to linuxEnvironment, no double delete needed
-
-                keepRunning = false;
-                break;
-            }
-            case 0: break; // Enter key pressed
-            default: std::cout << "Invalid input." << std::endl; break; // Logged
-        }
-    } // End main loop
-
-    // Final check to join threads if loop exited unexpectedly
-     if (processingThread.joinable()) {
-         std::cerr << "Warning: Main loop exited unexpectedly, ensuring processing thread is stopped." << std::endl; // Logged
-         stopProcessingFlag.store(true);
-         try { processingThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining processing thread: " << e.what() << std::endl; } // Logged
-     }
-     if (monitoringThread.joinable()) {
-         std::cerr << "Warning: Main loop exited unexpectedly, ensuring monitoring thread is stopped." << std::endl; // Logged
-         stopMonitoringFlag.store(true);
-          try { monitoringThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining monitoring thread: " << e.what() << std::endl; } // Logged
-     }
-
-      // Ensure linuxEnvironment is deleted if it exists, which should handle the vehicle pointer
-      if (linuxEnvironment) {
-         delete linuxEnvironment;
-         linuxEnvironment = nullptr;
-         vehicle = nullptr; // Pointer is now invalid
-      }
-      // Ensure flightSample is deleted if it exists and wasn't handled by linuxEnvironment deletion
-      if (flightSample) {
-          delete flightSample;
-          flightSample = nullptr;
-      }
-
-
-    std::cout << "Program terminated." << std::endl; // Logged (will also go to file via LogRedirector dtor)
-    return 0;
-    // LogRedirector destructor runs here, restoring original streams and closing file.
-}
+                std::cerr << "Skipping non-
