@@ -1314,4 +1314,604 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
 
         for (const auto& obj : jsonFrame["objects"]) {
             if (!obj.is_object()) {
-                std::cerr << "Skipping non-
+                // --- CORRECTED LINE ---
+                std::cerr << "Skipping non-object item in 'objects' array." << std::endl; // Logged
+                continue;
+            }
+            RadarObject radarObj;
+            radarObj.timestamp = obj.value("timestamp", json(nullptr)).dump();
+            radarObj.sensor = obj.value("sensor", "N/A");
+            radarObj.src = obj.value("src", "N/A");
+            radarObj.X = obj.value("X", 0.0f); radarObj.Y = obj.value("Y", 0.0f); radarObj.Z = obj.value("Z", 0.0f);
+            radarObj.Xdir = obj.value("Xdir", 0.0f); radarObj.Ydir = obj.value("Ydir", 0.0f); radarObj.Zdir = obj.value("Zdir", 0.0f);
+            radarObj.Range = obj.value("Range", 0.0f); radarObj.RangeRate = obj.value("RangeRate", 0.0f);
+            radarObj.Pwr = obj.value("Pwr", 0.0f); radarObj.Az = obj.value("Az", 0.0f); radarObj.El = obj.value("El", 0.0f);
+            if (obj.contains("ID") && obj["ID"].is_string()) radarObj.ID = obj.value("ID", "N/A");
+            else if (obj.contains("ID")) radarObj.ID = obj["ID"].dump(); else radarObj.ID = "N/A";
+            radarObj.Xsize = obj.value("Xsize", 0.0f); radarObj.Ysize = obj.value("Ysize", 0.0f); radarObj.Zsize = obj.value("Zsize", 0.0f);
+            radarObj.Conf = obj.value("Conf", 0.0f);
+            radarObjects.push_back(radarObj);
+        }
+    } catch (const json::parse_error& e) {
+        std::cerr << "JSON Parsing Error: " << e.what() << " at offset " << e.byte << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl; // Logged
+        return {};
+    } catch (const json::type_error& e) {
+        std::cerr << "JSON Type Error: " << e.what() << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl; // Logged
+        return {};
+    }
+    return radarObjects;
+}
+
+// Runs the python bridge script
+void runPythonBridge(const std::string& scriptName) {
+    std::cout << "Starting Python bridge (" << scriptName << ")..." << std::endl; // Logged
+    if (std::system(("python3 " + scriptName + " &").c_str()) != 0) {
+        std::cerr << "Failed to start Python bridge script '" << scriptName << "'." << std::endl; // Logged
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    std::cout << "Python bridge potentially started." << std::endl; // Logged
+}
+
+// Stops the python bridge script
+void stopPythonBridge(const std::string& scriptName) {
+    std::cout << "Stopping Python bridge (" << scriptName << ")..." << std::endl; // Logged
+    std::system(("pkill -f " + scriptName).c_str()); // Ignore result
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::cout << "Sent SIGTERM to " << scriptName << "." << std::endl; // Logged
+}
+
+// Connects to the python bridge via TCP
+bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& socket) {
+    tcp::resolver resolver(io_context);
+    int retries = 5;
+    while (retries-- > 0) {
+        try {
+            if(socket.is_open()) { socket.close(); } // Simpler close
+            auto endpoints = resolver.resolve("127.0.0.1", "5000");
+            boost::system::error_code ec;
+            boost::asio::connect(socket, endpoints, ec);
+            if (!ec) { std::cout << "Connected to Python bridge." << std::endl; return true; } // Logged
+            else { std::cerr << "Connection attempt failed: " << ec.message() << std::endl; } // Logged
+        } catch (const std::exception& e) {
+            std::cerr << "Exception during connection attempt: " << e.what() << std::endl; // Logged
+        }
+        if(retries > 0 && !stopProcessingFlag.load()) {
+             std::cout << "Retrying connection in 2 seconds... (" << retries << " attempts left)" << std::endl; // Logged
+             for (int i = 0; i < 2 && !stopProcessingFlag.load(); ++i) std::this_thread::sleep_for(std::chrono::seconds(1));
+             if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; } // Logged
+        } else if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; } // Logged
+    }
+     std::cerr << "Failed to connect to Python bridge after multiple attempts." << std::endl; // Logged
+     return false;
+}
+
+// Placeholder Callbacks
+void ObtainJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) { /* Unused */ }
+void ReleaseJoystickCtrlAuthorityCB(ErrorCode::ErrorCodeType errorCode, UserData userData) { /* Unused */ }
+
+// Enum for processing modes - ADDED combined mode
+enum class ProcessingMode {
+    WALL_FOLLOW,
+    PROCESS_FULL,
+    PROCESS_MINIMAL,
+    WALL_FOLLOW_YAW_LOCK,                 // Mode for Yaw Lock Test [y]
+    WALL_FOLLOW_BEACON_LATERAL_YAW_LOCK   // Mode for Combined Yaw Lock + Beacon Lateral [b] - NEW
+    // --- REMOVED Vertical Cycle Enums if they existed ---
+};
+
+// Processing loop function - No reconnection, releases authority on exit
+void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle, bool enableControlCmd, ProcessingMode mode) {
+    std::cout << "Processing thread started. Bridge: " << bridgeScriptName << ", Control Enabled: " << std::boolalpha << enableControlCmd << ", Mode: " << static_cast<int>(mode) << std::endl; // Logged
+    int functionTimeout = 1;
+
+    runPythonBridge(bridgeScriptName);
+    boost::asio::io_context io_context;
+    tcp::socket socket(io_context);
+
+    if (!connectToPythonBridge(io_context, socket)) {
+        std::cerr << "Processing thread: Initial connection failed. Exiting thread." << std::endl; // Logged
+        stopPythonBridge(bridgeScriptName);
+        if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
+            std::cout << "[Processing Thread] Releasing control authority (initial connection fail)..." << std::endl; // Logged
+            ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
+            if (ACK::getError(releaseAck)) ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority"); // Logged via ACK
+            else std::cout << "[Processing Thread] Control authority released." << std::endl; // Logged
+        }
+        return; // Exit thread
+    }
+
+    std::cout << "Processing thread: Connection successful. Reading data stream..." << std::endl; // Logged
+    std::string received_data_buffer;
+    std::array<char, 4096> read_buffer;
+    bool connection_error_occurred = false;
+
+    // Reset ALL state variables used in processing functions before the loop starts
+    currentSecond = "";
+    lowestRange = std::numeric_limits<float>::max();
+    hasAnonData = false;
+    targetBeaconAzimuth = std::numeric_limits<float>::quiet_NaN();
+    current_beacon_range = std::numeric_limits<float>::quiet_NaN();
+    foundTargetBeacon = false;
+    closestHorizAnonRange = std::numeric_limits<float>::max();
+    closestHorizAnonAzimuth = std::numeric_limits<float>::quiet_NaN();
+    hasHorizAnonData = false;
+
+
+    while (!stopProcessingFlag.load()) {
+        boost::system::error_code error;
+        size_t len = socket.read_some(boost::asio::buffer(read_buffer), error);
+
+        if (error) { // Handle read error
+            if (error == boost::asio::error::eof) std::cerr << "Processing thread: Connection closed by Python bridge (EOF)." << std::endl; // Logged
+            else std::cerr << "Processing thread: Error reading from socket: " << error.message() << std::endl; // Logged
+            connection_error_occurred = true;
+            break;
+        }
+
+        if (len > 0) { // Process received data
+            received_data_buffer.append(read_buffer.data(), len);
+            size_t newline_pos;
+            while ((newline_pos = received_data_buffer.find('\n')) != std::string::npos) {
+                std::string jsonData = received_data_buffer.substr(0, newline_pos);
+                received_data_buffer.erase(0, newline_pos + 1);
+                if (stopProcessingFlag.load()) break;
+                if (!jsonData.empty()) {
+                    try {
+                        auto radarObjects = parseRadarData(jsonData);
+                        if (!radarObjects.empty()) {
+                            // --- Updated Switch Case - ADDED combined mode ---
+                            switch (mode) {
+                                case ProcessingMode::WALL_FOLLOW:
+                                    extractBeaconAndWallData(radarObjects, vehicle, enableControlCmd);
+                                    break;
+                                case ProcessingMode::PROCESS_FULL:
+                                    displayRadarObjects(radarObjects);
+                                    break;
+                                case ProcessingMode::PROCESS_MINIMAL:
+                                    displayRadarObjectsMinimal(radarObjects);
+                                    break;
+                                case ProcessingMode::WALL_FOLLOW_YAW_LOCK: // Yaw Lock
+                                    extractBeaconAndWallData_YawLock(radarObjects, vehicle, enableControlCmd);
+                                    break;
+                                case ProcessingMode::WALL_FOLLOW_BEACON_LATERAL_YAW_LOCK: // Combined Mode - NEW
+                                    extractBeaconAndWallData_Combined(radarObjects, vehicle, enableControlCmd);
+                                    break;
+                                // --- REMOVED cases for Vertical Cycle modes if they existed ---
+                            }
+                        }
+                    } catch (const std::exception& e) {
+                         std::cerr << "Error processing data: " << e.what() << "\nSnippet: [" << jsonData.substr(0, 100) << "...]" << std::endl; // Logged
+                    }
+                }
+            }
+            if (stopProcessingFlag.load()) break;
+        } else {
+             std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Brief pause if no data
+        }
+    }
+
+    // --- Cleanup ---
+    if (stopProcessingFlag.load()) std::cout << "[Processing Thread] Stop requested manually." << std::endl; // Logged
+    else if (connection_error_occurred) std::cout << "[Processing Thread] Exiting due to connection error." << std::endl; // Logged
+    else std::cout << "[Processing Thread] Data stream ended." << std::endl; // Logged
+
+    if (socket.is_open()) { socket.close(); }
+    stopPythonBridge(bridgeScriptName);
+
+    // Release Control Authority if enabled
+    if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
+        std::cout << "[Processing Thread] Sending final zero velocity command..." << std::endl; // Logged
+        uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE; // Truncated
+        DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
+        vehicle->control->flightCtrl(stopData);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        std::cout << "[Processing Thread] Releasing control authority..." << std::endl; // Logged
+        ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
+        if (ACK::getError(releaseAck)) {
+             ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority (on exit)"); // Logged via ACK
+             std::cerr << "[Processing Thread] Warning: Failed to release control authority on exit." << std::endl; // Logged
+        } else {
+             std::cout << "[Processing Thread] Control authority released." << std::endl; // Logged
+        }
+    }
+    std::cout << "Processing thread finished." << std::endl; // Logged
+}
+
+// Helper function to get mode name string
+std::string getModeName(uint8_t mode) {
+    switch(mode) {
+        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_MANUAL_CTRL: return "MANUAL_CTRL";
+        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_ATTITUDE: return "ATTITUDE";
+        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_P_GPS: return "P_GPS";
+        case DJI::OSDK::VehicleStatus::DisplayMode::MODE_NAVI_SDK_CTRL: return "NAVI_SDK_CTRL";
+        case 31: return "Mode 31";
+        default: return "Other (" + std::to_string(mode) + ")";
+    }
+}
+
+// Background thread function for monitoring
+void monitoringLoopFunction(Vehicle* vehicle) {
+    std::cout << "[Monitoring] Thread started." << std::endl; // Logged
+    bool telemetry_timed_out = false;
+    bool warned_unexpected_status = false;
+    uint8_t previous_flight_status = DJI::OSDK::VehicleStatus::FlightStatus::STOPED;
+    time_t last_valid_poll_time = 0;
+    bool in_sdk_control_mode = false;
+    bool warned_not_in_sdk_mode = false;
+    const uint8_t EXPECTED_SDK_MODE = DJI::OSDK::VehicleStatus::DisplayMode::MODE_NAVI_SDK_CTRL;
+
+    while (!stopMonitoringFlag.load()) {
+        if (vehicle == nullptr || vehicle->subscribe == nullptr) {
+             if (!telemetry_timed_out) {
+                 std::cerr << "\n**** MONITORING ERROR: Vehicle/subscribe object null. Stopping. ****" << std::endl << std::endl; // Logged
+                 telemetry_timed_out = true;
+             }
+             break;
+        }
+
+        uint8_t current_flight_status = vehicle->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_FLIGHT>();
+        uint8_t current_display_mode = vehicle->subscribe->getValue<DJI::OSDK::Telemetry::TOPIC_STATUS_DISPLAYMODE>();
+        bool valid_poll = (current_flight_status <= DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR);
+
+        if (valid_poll) {
+            time_t current_time = std::time(nullptr);
+            last_valid_poll_time = current_time;
+            if (telemetry_timed_out) {
+                 std::cout << "[Monitoring] Telemetry poll recovered." << std::endl; // Logged
+                 telemetry_timed_out = false;
+            }
+
+            // Check Flight Status Change
+            if (current_flight_status != DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR) {
+                if ( (previous_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR) &&
+                     (current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::ON_GROUND || current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::STOPED) &&
+                     !warned_unexpected_status) {
+                     std::cerr << "\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " << (int)current_flight_status << ". ****" << std::endl << std::endl; // Logged
+                     warned_unexpected_status = true;
+                }
+            } else {
+                 warned_unexpected_status = false;
+            }
+            previous_flight_status = current_flight_status;
+
+            // Check Expected SDK Mode
+            bool is_expected_mode = (current_display_mode == EXPECTED_SDK_MODE);
+            if (is_expected_mode) {
+                if (!in_sdk_control_mode) {
+                    std::cout << "\n**** MONITORING INFO: Entered SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << " / " << (int)EXPECTED_SDK_MODE << ") ****" << std::endl << std::endl; // Logged
+                    in_sdk_control_mode = true;
+                    warned_not_in_sdk_mode = false;
+                }
+            } else { // Not in expected mode
+                 if (in_sdk_control_mode || !warned_not_in_sdk_mode) {
+                      // Check if processing thread is stopping/stopped
+                      if (!stopProcessingFlag.load() && processingThread.joinable()) {
+                          std::string current_mode_name = getModeName(current_display_mode);
+                          std::cerr << "\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << "). Current: " << current_mode_name << " (" << (int)current_display_mode << ") ****" << std::endl << std::endl; // Logged (Truncated)
+                          warned_not_in_sdk_mode = true;
+                      }
+                      in_sdk_control_mode = false;
+                 }
+            }
+        } else { // Invalid poll
+            if (!telemetry_timed_out) {
+                 std::cerr << "\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" << (int)current_flight_status << "). ****" << std::endl << std::endl; // Logged
+                 telemetry_timed_out = true;
+            }
+        }
+
+        // Check Telemetry Timeout
+        time_t current_time_for_timeout_check = std::time(nullptr);
+        if (last_valid_poll_time > 0 && (current_time_for_timeout_check - last_valid_poll_time > TELEMETRY_TIMEOUT_SECONDS)) {
+            if (!telemetry_timed_out) {
+                std::cerr << "\n**** MONITORING TIMEOUT: No valid telemetry for over " << TELEMETRY_TIMEOUT_SECONDS << " seconds. ****" << std::endl << std::endl; // Logged
+                telemetry_timed_out = true;
+            }
+        } else if (last_valid_poll_time == 0) { // Check if never received first poll
+             static time_t start_time = 0; if (start_time == 0) start_time = current_time_for_timeout_check;
+             if (current_time_for_timeout_check - start_time > TELEMETRY_TIMEOUT_SECONDS * 2) {
+                  if (!telemetry_timed_out) {
+                       std::cerr << "\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " << TELEMETRY_TIMEOUT_SECONDS * 2 << " seconds. ****" << std::endl << std::endl; // Logged
+                       telemetry_timed_out = true;
+                  }
+             }
+        }
+
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    std::cout << "[Monitoring] Thread finished." << std::endl; // Logged
+}
+
+
+int main(int argc, char** argv) {
+    // --- Instantiate LogRedirector early in main ---
+    LogRedirector logger("run_log.txt");
+
+    loadPreferences(); // Load preferences first
+
+    // --- Mode Selection Removed - Hardcoded to Live Mode ---
+    bool enableFlightControl = true;
+    // defaultPythonBridgeScript is already set globally
+
+    std::cout << "Starting in Live Mode. Flight control enabled. Default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
+
+
+    // --- OSDK Initialization ---
+    int functionTimeout = 1;
+    Vehicle* vehicle = nullptr;
+    FlightSample* flightSample = nullptr;
+    LinuxSetup* linuxEnvironment = nullptr;
+    int telemetrySubscriptionFrequency = 1;
+    int pkgIndex = 0;
+    bool monitoringEnabled = false;
+
+    if (enableFlightControl) { // This will always be true now unless OSDK init fails
+        std::cout << "Initializing DJI OSDK..." << std::endl; // Logged
+        linuxEnvironment = new LinuxSetup(argc, argv);
+        vehicle = linuxEnvironment->getVehicle();
+        if (vehicle == nullptr || vehicle->control == nullptr || vehicle->subscribe == nullptr) {
+            std::cerr << "ERROR: Vehicle not initialized or interfaces unavailable. Disabling flight control." << std::endl; // Logged
+             if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
+             vehicle = nullptr;
+             enableFlightControl = false; // Fallback in case of init error
+             std::cout << "OSDK Initialization Failed. Flight control disabled." << std::endl; // Logged
+        } else { // OSDK Init seems OK
+            std::cout << "Attempting to obtain Control Authority..." << std::endl; // Logged
+            ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+            if (ACK::getError(ctrlAuthAck)) {
+                 ACK::getErrorCodeMessage(ctrlAuthAck, __func__); // Logged via ACK
+                 std::cerr << "Failed to obtain control authority. Disabling flight control." << std::endl; // Logged
+                 if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
+                 vehicle = nullptr;
+                 enableFlightControl = false; // Fallback
+                 std::cout << "Obtaining Control Authority Failed. Flight control disabled." << std::endl; // Logged
+            } else { // Authority Obtained
+                 std::cout << "Obtained Control Authority." << std::endl; // Logged
+                 flightSample = new FlightSample(vehicle);
+                 std::cout << "OSDK Initialized and Flight Sample created." << std::endl; // Logged
+
+                 // --- Setup Telemetry Subscription for Monitoring ---
+                 std::cout << "Setting up Telemetry Subscription for Monitoring..." << std::endl; // Logged
+                 ACK::ErrorCode subscribeAck = vehicle->subscribe->verify(functionTimeout);
+                 if (ACK::getError(subscribeAck)) {
+                      ACK::getErrorCodeMessage(subscribeAck, __func__); // Logged via ACK
+                      std::cerr << "Error verifying subscription package list. Monitoring will be disabled." << std::endl; // Logged
+                 } else {
+                      Telemetry::TopicName topicList[] = {
+                          Telemetry::TOPIC_STATUS_FLIGHT,
+                          Telemetry::TOPIC_STATUS_DISPLAYMODE
+                      };
+                      int numTopic = sizeof(topicList) / sizeof(topicList[0]);
+                      bool topicStatus = vehicle->subscribe->initPackageFromTopicList(pkgIndex, numTopic, topicList,
+                                                                                       false, telemetrySubscriptionFrequency);
+
+                      if (topicStatus) {
+                            std::cout << "Successfully initialized package " << pkgIndex << " with Flight Status and Display Mode topics." << std::endl; // Logged Updated msg
+                            ACK::ErrorCode startAck = vehicle->subscribe->startPackage(pkgIndex, functionTimeout);
+                            if (ACK::getError(startAck)) {
+                                 ACK::getErrorCodeMessage(startAck, "startPackage"); // Logged via ACK
+                                 std::cerr << "Error starting subscription package " << pkgIndex << ". Monitoring will be disabled." << std::endl; // Logged
+                                 vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
+                            } else {
+                                 std::cout << "Successfully started package " << pkgIndex << "." << std::endl; // Logged
+                                 std::cout << "Starting monitoring thread..." << std::endl; // Logged
+                                 stopMonitoringFlag.store(false);
+                                 monitoringThread = std::thread(monitoringLoopFunction, vehicle);
+                                 monitoringEnabled = true;
+                                 std::cout << "[Main] Monitoring thread launched." << std::endl; // Logged
+                            }
+                      } else {
+                           std::cerr << "Error initializing package " << pkgIndex << " from topic list. Monitoring will be disabled." << std::endl; // Logged
+                      }
+                 }
+            }
+        }
+    }
+
+    std::cout << "INFO: Flight control is " << (enableFlightControl ? "ENABLED" : "DISABLED") << ". Proceeding to main menu." << std::endl; // Logged Keep this info line
+
+    // --- Main Command Loop ---
+    bool keepRunning = true;
+    while (keepRunning) {
+        // --- Updated Menu Display - ADDED [b] ---
+        std::cout << "\n--- Main Menu ---\n" // Logged
+                  << (enableFlightControl ? "| [t] Monitored Takeoff                     |\n| [w] Start Wall+Beacon Following (Default) |\n| [y] Start Wall Following + Yaw Lock       |\n| [b] Start Combined Mode (Yaw+Beacon Lat)  |\n" // Logged NEW
+                                          : "| [t] Takeoff (DISABLED)                    |\n| [w] Wall/Beacon Following (No Control)    |\n| [y] Wall Following + Yaw Lock (No Control)|\n| [b] Combined Mode (No Control)            |\n") // Logged NEW
+                  << "| [e] Process Full Radar (No Control)       |\n" // Logged
+                  << "| [f] Process Minimal Radar (No Control)    |\n" // Logged
+                  << "| [q] Quit                                  |\n" // Logged
+                  << "---------------------------------------------\n" // Logged
+                  << "Enter command: "; // Logged (No endl here)
+
+        std::string lineInput; char inputChar = 0;
+        if (std::getline(std::cin, lineInput)) {
+             std::cout << lineInput << std::endl; // Echo input to log
+             if (!lineInput.empty()) inputChar = lineInput[0];
+        }
+        else { inputChar = 'q'; if (std::cin.eof()) std::cout << "\nEOF detected. "; std::cout << "Exiting." << std::endl; } // Logged
+
+        // Stop processing thread if starting new task ('w','e','f','y','b') or quitting ('q')
+         if (strchr("wefyb", inputChar) != nullptr || inputChar == 'q') { // Added 'b'
+             if (processingThread.joinable()) {
+                 std::cout << "Signalling processing thread to stop..." << std::endl; // Logged
+                 stopProcessingFlag.store(true); processingThread.join();
+                 std::cout << "Processing thread finished." << std::endl; // Logged
+                 stopProcessingFlag.store(false);
+             }
+         }
+         // Stop monitoring thread on quit
+         if (inputChar == 'q' && monitoringThread.joinable()) {
+             std::cout << "Signalling monitoring thread to stop..." << std::endl; // Logged
+             stopMonitoringFlag.store(true); monitoringThread.join();
+             std::cout << "Monitoring thread finished." << std::endl; // Logged
+             stopMonitoringFlag.store(false); monitoringEnabled = false;
+         }
+
+        // --- Process Command - ADDED case 'b' ---
+        switch (inputChar) {
+            case 't': // Takeoff
+                if (enableFlightControl && flightSample && vehicle && vehicle->control) {
+                    std::cout << "Attempting to obtain Control Authority for Takeoff..." << std::endl; // Logged
+                    ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                    if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Takeoff obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority for takeoff." << std::endl; // Logged
+                         break;
+                    } else {
+                         std::cout << "Obtained Control Authority for Takeoff." << std::endl; // Logged
+                         flightSample->monitoredTakeoff(); // Internal logging exists
+                    }
+                } else {
+                     std::cout << "Flight control not enabled or available." << std::endl; // Logged
+                }
+                break;
+
+             case 'w': { // Wall Following (Default)
+                 std::string bridge = defaultPythonBridgeScript;
+                 bool useControl = enableFlightControl;
+
+                 std::cout << "Starting Wall+Beacon Following using bridge: " << bridge << std::endl; // Logged
+                 if (useControl && vehicle && vehicle->control) {
+                     std::cout << "Attempting to obtain Control Authority for Wall Following..." << std::endl; // Logged
+                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                     if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Wall Following obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority. Cannot start with control." << std::endl; // Logged
+                         break;
+                     } else {
+                         std::cout << "Obtained Control Authority for Wall Following." << std::endl; // Logged
+                     }
+                 } else if (useControl) {
+                      std::cerr << "Error: Cannot start with control as OSDK is not properly initialized." << std::endl; // Logged
+                      break;
+                 }
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, bridge, vehicle, useControl, ProcessingMode::WALL_FOLLOW);
+                 break;
+             }
+             case 'y': { // Wall Following + Yaw Lock
+                 std::cout << "Starting Wall Following + Yaw Lock using default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
+                 if (enableFlightControl && vehicle && vehicle->control) {
+                     std::cout << "Attempting to obtain Control Authority for Yaw Lock Test..." << std::endl; // Logged
+                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                     if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Yaw Lock obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority. Cannot start Yaw Lock Test with control." << std::endl; // Logged
+                         break;
+                     } else {
+                         std::cout << "Obtained Control Authority for Yaw Lock Test." << std::endl; // Logged
+                     }
+                 } else if (enableFlightControl) {
+                      std::cerr << "Error: Cannot start Yaw Lock Test with control as OSDK control interface is not properly initialized." << std::endl; // Logged
+                      break;
+                 }
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW_YAW_LOCK);
+                 break;
+             }
+             case 'b': { // Combined Mode: Yaw Lock + Beacon Lateral - NEW
+                 std::cout << "Starting Combined Mode (Yaw Lock + Beacon Lateral) using default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
+                 if (enableFlightControl && vehicle && vehicle->control) {
+                     std::cout << "Attempting to obtain Control Authority for Combined Mode..." << std::endl; // Logged
+                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
+                     if (ACK::getError(ctrlAuthAck)) {
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Combined Mode obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority. Cannot start Combined Mode with control." << std::endl; // Logged
+                         break;
+                     } else {
+                         std::cout << "Obtained Control Authority for Combined Mode." << std::endl; // Logged
+                     }
+                 } else if (enableFlightControl) {
+                      std::cerr << "Error: Cannot start Combined Mode with control as OSDK control interface is not properly initialized." << std::endl; // Logged
+                      break;
+                 }
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, vehicle, enableFlightControl, ProcessingMode::WALL_FOLLOW_BEACON_LATERAL_YAW_LOCK);
+                 break;
+             }
+             case 'e': // Process Full
+             case 'f': { // Process Minimal
+                 ProcessingMode procMode = (inputChar == 'e') ? ProcessingMode::PROCESS_FULL : ProcessingMode::PROCESS_MINIMAL;
+                 std::cout << "Starting Radar Data processing (No Control) using bridge: " << defaultPythonBridgeScript << std::endl; // Logged
+                 stopProcessingFlag.store(false);
+                 processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, procMode);
+                 break;
+             }
+
+            case 'q': { // Quit
+                std::cout << "Exiting..." << std::endl; // Logged
+                // Stop threads handled above
+
+                if (monitoringEnabled && vehicle && vehicle->subscribe) {
+                    std::cout << "Unsubscribing from telemetry..." << std::endl; // Logged
+                    ACK::ErrorCode statusAck = vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
+                    if(ACK::getError(statusAck)) {
+                        ACK::getErrorCodeMessage(statusAck, __func__); // Logged via ACK
+                        std::cerr << "Warning: Failed to unsubscribe from telemetry package " << pkgIndex << "." << std::endl; // Logged
+                    } else {
+                        std::cout << "Telemetry unsubscribed." << std::endl; // Logged
+                    }
+                }
+
+                if (enableFlightControl && vehicle && vehicle->control) {
+                    std::cout << "Sending Zero Velocity command before final release..." << std::endl; // Logged
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE; // Truncated
+                    DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
+                    vehicle->control->flightCtrl(stopData);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                    std::cout << "Releasing Control Authority on Quit..." << std::endl; // Logged
+                    ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
+                     if (ACK::getError(releaseAck)) {
+                         ACK::getErrorCodeMessage(releaseAck, "Quit releaseCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Warning: Failed to release control authority on quit." << std::endl; // Logged
+                     } else {
+                         std::cout << "Control Authority Released on Quit." << std::endl; // Logged
+                     }
+                }
+                 if (linuxEnvironment) {
+                    delete linuxEnvironment; linuxEnvironment = nullptr;
+                 }
+                 if (flightSample) {
+                    delete flightSample; flightSample = nullptr;
+                 }
+                 vehicle = nullptr;
+
+                keepRunning = false;
+                break;
+            }
+            case 0: break; // Enter key pressed
+            default: std::cout << "Invalid input." << std::endl; break; // Logged
+        }
+    } // End main loop
+
+    // Final check to join threads if loop exited unexpectedly
+     if (processingThread.joinable()) {
+         std::cerr << "Warning: Main loop exited unexpectedly, ensuring processing thread is stopped." << std::endl; // Logged
+         stopProcessingFlag.store(true);
+         try { processingThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining processing thread: " << e.what() << std::endl; } // Logged
+     }
+     if (monitoringThread.joinable()) {
+         std::cerr << "Warning: Main loop exited unexpectedly, ensuring monitoring thread is stopped." << std::endl; // Logged
+         stopMonitoringFlag.store(true);
+          try { monitoringThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining monitoring thread: " << e.what() << std::endl; } // Logged
+     }
+
+      // Ensure linuxEnvironment is deleted if it exists, which should handle the vehicle pointer
+      if (linuxEnvironment) {
+         delete linuxEnvironment;
+         linuxEnvironment = nullptr;
+         vehicle = nullptr; // Pointer is now invalid
+      }
+      // Ensure flightSample is deleted if it exists and wasn't handled by linuxEnvironment deletion
+      if (flightSample) {
+          delete flightSample;
+          flightSample = nullptr;
+      }
+
+
+    std::cout << "Program terminated." << std::endl; // Logged (will also go to file via LogRedirector dtor)
+    return 0;
+    // LogRedirector destructor runs here, restoring original streams and closing file.
+}
