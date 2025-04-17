@@ -11,13 +11,17 @@
 #include "flight_sample.hpp"         // Still needed for FlightSample class definition
 #include "dji_linux_helpers.hpp"
 #include <limits> // For numeric limits
-#include <fstream> // For file reading
+#include <fstream> // For file reading AND LOGGING
 #include <cmath> // For std::abs, std::isnan, pow, sqrt, tan, atan, M_PI
 #include <atomic> // For thread-safe stop flag
 #include <cstring> // For strchr
 #include <stdexcept> // For standard exceptions
 #include <array> // For std::array used in read_some buffer
 #include <ctime>  // For checking polling timestamp
+#include <streambuf> // For TeeBuf
+#include <mutex>     // For TeeBuf thread safety
+#include <memory>    // For unique_ptr
+#include <iomanip>   // For std::put_time in timestamp
 
 // Include the headers that define Control flags, CtrlData, FlightController, and Vehicle
 #include "dji_control.hpp"           // Defines Control class, CtrlData, enums
@@ -35,6 +39,130 @@
 using namespace DJI::OSDK;
 using json = nlohmann::json;
 using boost::asio::ip::tcp;
+
+// --- Logging Setup ---
+
+// TeeBuf writes output to two streambufs (e.g., console and file)
+class TeeBuf : public std::streambuf {
+public:
+    TeeBuf(std::streambuf* sb1, std::streambuf* sb2) : sb1_(sb1), sb2_(sb2) {}
+
+protected:
+    // Called when buffer is full or on explicit flush/endl
+    virtual int sync() override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        int r1 = sb1_->pubsync();
+        int r2 = sb2_->pubsync();
+        return (r1 == 0 && r2 == 0) ? 0 : -1;
+    }
+
+    // Called when a character is written
+    virtual int_type overflow(int_type c = traits_type::eof()) override {
+        if (traits_type::eq_int_type(c, traits_type::eof())) {
+            return sync() == -1 ? traits_type::eof() : traits_type::not_eof(c);
+        }
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        int_type const r1 = sb1_->sputc(c);
+        int_type const r2 = sb2_->sputc(c);
+
+        if (traits_type::eq_int_type(r1, traits_type::eof()) ||
+            traits_type::eq_int_type(r2, traits_type::eof())) {
+            return traits_type::eof(); // Indicate error if either fails
+        }
+        return traits_type::not_eof(c); // Indicate success
+    }
+
+private:
+    std::streambuf* sb1_;
+    std::streambuf* sb2_;
+    std::mutex mutex_; // Protect concurrent writes from different threads
+};
+
+// RAII class to manage redirection and restoration of streams
+class LogRedirector {
+public:
+    LogRedirector(const std::string& log_filename)
+        : log_file_(log_filename, std::ios::app), // Open in append mode
+          original_cout_buf_(nullptr),
+          original_cerr_buf_(nullptr)
+    {
+        if (!log_file_.is_open()) {
+            // Use original cerr because redirection hasn't happened yet
+            if (original_cerr_buf_) std::cerr.rdbuf(original_cerr_buf_);
+            std::cerr << "FATAL ERROR: Could not open log file: " << log_filename << std::endl;
+             // Restore original cerr buffer in case it was temporarily changed above
+            if (original_cerr_buf_) std::cerr.rdbuf(original_cerr_buf_);
+            // Log file couldn't be opened, so don't redirect
+            return;
+        }
+
+        original_cout_buf_ = std::cout.rdbuf(); // Save original cout buffer
+        original_cerr_buf_ = std::cerr.rdbuf(); // Save original cerr buffer
+
+        // Use reset(new ...) instead of std::make_unique for C++11 compatibility
+        cout_tee_buf_.reset(new TeeBuf(original_cout_buf_, log_file_.rdbuf()));
+        cerr_tee_buf_.reset(new TeeBuf(original_cerr_buf_, log_file_.rdbuf())); // Also log cerr to the same file
+
+
+        std::cout.rdbuf(cout_tee_buf_.get()); // Redirect cout
+        std::cerr.rdbuf(cerr_tee_buf_.get()); // Redirect cerr
+
+        std::cout << "\n--- Log Start [" << getCurrentTimestamp() << "] ---" << std::endl; // Added newline for separation
+    }
+
+    ~LogRedirector() {
+         std::cout << "--- Log End [" << getCurrentTimestamp() << "] ---\n" << std::endl; // Added newline for separation
+
+        // Flush streams before restoring
+        std::cout.flush();
+        std::cerr.flush();
+
+        // Restore original buffers only if redirection actually happened
+        if (cout_tee_buf_ && original_cout_buf_) { // Check if unique_ptr holds a buffer
+            std::cout.rdbuf(original_cout_buf_);
+        }
+        if (cerr_tee_buf_ && original_cerr_buf_) { // Check if unique_ptr holds a buffer
+            std::cerr.rdbuf(original_cerr_buf_);
+        }
+
+        // log_file_ is closed automatically by its destructor
+        // unique_ptrs clean up TeeBuf instances automatically
+    }
+
+    // Disable copy/move semantics
+    LogRedirector(const LogRedirector&) = delete;
+    LogRedirector& operator=(const LogRedirector&) = delete;
+    LogRedirector(LogRedirector&&) = delete;
+    LogRedirector& operator=(LogRedirector&&) = delete;
+
+private:
+    std::ofstream log_file_;
+    std::streambuf* original_cout_buf_;
+    std::streambuf* original_cerr_buf_;
+    std::unique_ptr<TeeBuf> cout_tee_buf_;
+    std::unique_ptr<TeeBuf> cerr_tee_buf_;
+
+    std::string getCurrentTimestamp() {
+        auto now = std::chrono::system_clock::now();
+        auto now_c = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        #ifdef _MSC_VER // Use secure version on Windows if available
+        struct tm buf;
+        localtime_s(&buf, &now_c);
+        ss << std::put_time(&buf, "%Y-%m-%d %H:%M:%S");
+        #else
+        // Use thread-safe version if available (POSIX standard)
+        struct tm buf;
+        localtime_r(&now_c, &buf); // Use localtime_r for thread safety
+        ss << std::put_time(&buf, "%Y-%m-%d %H:%M:%S");
+        #endif
+        return ss.str();
+    }
+};
+
+// --- End Logging Setup ---
+
 
 // --- Configurable Parameters (with defaults) ---
 std::string TARGET_BEACON_ID = "BEACON-TX-ID:00005555";
@@ -84,7 +212,7 @@ const int TELEMETRY_TIMEOUT_SECONDS = 5;
 
 // Function to load preferences
 void loadPreferences() {
-    std::cout << "Loading preferences...\n";
+    std::cout << "Loading preferences..." << std::endl; // Logged
     std::ifstream preferencesFile("preferences.txt");
     if (preferencesFile.is_open()) {
         std::string line;
@@ -98,7 +226,7 @@ void loadPreferences() {
 
             size_t equalsPos = line.find('=');
             if (equalsPos == std::string::npos) {
-                std::cerr << "Warning: Skipping invalid line in preferences file: " << line << std::endl;
+                std::cerr << "Warning: Skipping invalid line in preferences file: " << line << std::endl; // Logged
                 continue;
             }
 
@@ -108,89 +236,89 @@ void loadPreferences() {
             try {
                 if (key == "target_beacon_id") {
                     TARGET_BEACON_ID = value;
-                    std::cout << "  TARGET_BEACON_ID set to: " << TARGET_BEACON_ID << " (from preferences file)\n";
+                    std::cout << "  TARGET_BEACON_ID set to: " << TARGET_BEACON_ID << " (from preferences file)" << std::endl; // Logged
                 } else if (key == "targetdistance") {
                     targetDistance = std::stof(value);
-                    std::cout << "  targetDistance set to: " << targetDistance << " meters (from preferences file)\n";
+                    std::cout << "  targetDistance set to: " << targetDistance << " meters (from preferences file)" << std::endl; // Logged
                 } else if (key == "target_azimuth") {
                     targetAzimuth = std::stof(value);
-                    std::cout << "  targetAzimuth (Initial) set to: " << targetAzimuth << " degrees (from preferences file)\n";
+                    std::cout << "  targetAzimuth (Initial) set to: " << targetAzimuth << " degrees (from preferences file)" << std::endl; // Logged
                 } else if (key == "kp_forward") {
                     Kp_forward = std::stof(value);
-                    std::cout << "  Kp_forward set to: " << Kp_forward << " (from preferences file)\n";
+                    std::cout << "  Kp_forward set to: " << Kp_forward << " (from preferences file)" << std::endl; // Logged
                 } else if (key == "max_forward_speed") {
                     max_forward_speed = std::stof(value);
-                    std::cout << "  max_forward_speed set to: " << max_forward_speed << " m/s (from preferences file)\n";
+                    std::cout << "  max_forward_speed set to: " << max_forward_speed << " m/s (from preferences file)" << std::endl; // Logged
                 } else if (key == "forward_dead_zone") {
                     forward_dead_zone = std::stof(value);
-                    std::cout << "  forward_dead_zone set to: " << forward_dead_zone << " meters (from preferences file)\n";
+                    std::cout << "  forward_dead_zone set to: " << forward_dead_zone << " meters (from preferences file)" << std::endl; // Logged
                 } else if (key == "kp_lateral") {
                     Kp_lateral = std::stof(value);
-                    std::cout << "  Kp_lateral set to: " << Kp_lateral << " (from preferences file)\n";
+                    std::cout << "  Kp_lateral set to: " << Kp_lateral << " (from preferences file)" << std::endl; // Logged
                 } else if (key == "max_lateral_speed") {
                     max_lateral_speed = std::stof(value);
-                    std::cout << "  max_lateral_speed set to: " << max_lateral_speed << " m/s (from preferences file)\n";
+                    std::cout << "  max_lateral_speed set to: " << max_lateral_speed << " m/s (from preferences file)" << std::endl; // Logged
                 } else if (key == "azimuth_dead_zone") {
                     azimuth_dead_zone = std::stof(value);
-                    std::cout << "  azimuth_dead_zone set to: " << azimuth_dead_zone << " degrees (from preferences file)\n";
+                    std::cout << "  azimuth_dead_zone set to: " << azimuth_dead_zone << " degrees (from preferences file)" << std::endl; // Logged
                 } else if (key == "position_distance_tolerance") {
                     position_distance_tolerance = std::stof(value);
-                    std::cout << "  position_distance_tolerance set to: " << position_distance_tolerance << " meters (from preferences file)\n";
+                    std::cout << "  position_distance_tolerance set to: " << position_distance_tolerance << " meters (from preferences file)" << std::endl; // Logged
                 } else if (key == "position_azimuth_tolerance") {
                     position_azimuth_tolerance = std::stof(value);
-                    std::cout << "  position_azimuth_tolerance set to: " << position_azimuth_tolerance << " degrees (from preferences file)\n";
+                    std::cout << "  position_azimuth_tolerance set to: " << position_azimuth_tolerance << " degrees (from preferences file)" << std::endl; // Logged
                 } else if (key == "descent_speed") {
                     descent_speed = std::stof(value);
-                    std::cout << "  descent_speed set to: " << descent_speed << " m/s (from preferences file)\n";
+                    std::cout << "  descent_speed set to: " << descent_speed << " m/s (from preferences file)" << std::endl; // Logged
                 } else if (key == "min_floor_altitude") {
                     min_floor_altitude = std::stof(value);
-                    std::cout << "  min_floor_altitude set to: " << min_floor_altitude << " meters (from preferences file)\n";
+                    std::cout << "  min_floor_altitude set to: " << min_floor_altitude << " meters (from preferences file)" << std::endl; // Logged
                 } else if (key == "target_beacon_range") {
                     target_beacon_range = std::stof(value);
-                    std::cout << "  target_beacon_range (Base) set to: " << target_beacon_range << " meters (from preferences file)\n";
+                    std::cout << "  target_beacon_range (Base) set to: " << target_beacon_range << " meters (from preferences file)" << std::endl; // Logged
                 } else if (key == "beacon_range_tolerance") {
                     beacon_range_tolerance = std::stof(value);
-                    std::cout << "  beacon_range_tolerance set to: " << beacon_range_tolerance << " meters (from preferences file)\n";
+                    std::cout << "  beacon_range_tolerance set to: " << beacon_range_tolerance << " meters (from preferences file)" << std::endl; // Logged
                 } else if (key == "ascent_speed") {
                     ascent_speed = std::stof(value);
-                    std::cout << "  ascent_speed set to: " << ascent_speed << " m/s (from preferences file)\n";
+                    std::cout << "  ascent_speed set to: " << ascent_speed << " m/s (from preferences file)" << std::endl; // Logged
                 } else if (key == "complex_cycles") {
                     complex_cycles = std::stoi(value);
-                    std::cout << "  complex_cycles set to: " << complex_cycles << " (from preferences file)\n";
+                    std::cout << "  complex_cycles set to: " << complex_cycles << " (from preferences file)" << std::endl; // Logged
                 } else if (key == "lateral_step_meters") { // Renamed from azimuth_step
                     lateral_step_meters = std::stof(value);
-                    std::cout << "  lateral_step_meters set to: " << lateral_step_meters << " meters (from preferences file)\n";
+                    std::cout << "  lateral_step_meters set to: " << lateral_step_meters << " meters (from preferences file)" << std::endl; // Logged
                 }
             } catch (const std::invalid_argument& ia) {
-                std::cerr << "Warning: Invalid number format for key '" << key << "' in preferences file: " << value << std::endl;
+                std::cerr << "Warning: Invalid number format for key '" << key << "' in preferences file: " << value << std::endl; // Logged
             } catch (const std::out_of_range& oor) {
-                std::cerr << "Warning: Value out of range for key '" << key << "' in preferences file: " << value << std::endl;
+                std::cerr << "Warning: Value out of range for key '" << key << "' in preferences file: " << value << std::endl; // Logged
             } catch (...) {
-                 std::cerr << "Warning: Unknown error parsing line for key '" << key << "' in preferences file: " << value << std::endl;
+                 std::cerr << "Warning: Unknown error parsing line for key '" << key << "' in preferences file: " << value << std::endl; // Logged
             }
         }
         preferencesFile.close();
-        std::cout << "Finished loading preferences.\n";
+        std::cout << "Finished loading preferences." << std::endl; // Logged
     } else {
-        std::cout << "Preferences file ('preferences.txt') not found. Using default values:\n";
-        std::cout << "  Default TARGET_BEACON_ID: " << TARGET_BEACON_ID << std::endl;
-        std::cout << "  Default targetDistance: " << targetDistance << " meters\n";
-        std::cout << "  Default targetAzimuth (Initial): " << targetAzimuth << " degrees\n";
-        std::cout << "  Default Kp_forward: " << Kp_forward << std::endl;
-        std::cout << "  Default max_forward_speed: " << max_forward_speed << " m/s\n";
-        std::cout << "  Default forward_dead_zone: " << forward_dead_zone << " meters\n";
-        std::cout << "  Default Kp_lateral: " << Kp_lateral << std::endl;
-        std::cout << "  Default max_lateral_speed: " << max_lateral_speed << " m/s\n";
-        std::cout << "  Default azimuth_dead_zone: " << azimuth_dead_zone << " degrees\n";
-        std::cout << "  Default position_distance_tolerance: " << position_distance_tolerance << " meters\n";
-        std::cout << "  Default position_azimuth_tolerance: " << position_azimuth_tolerance << " degrees\n";
-        std::cout << "  Default descent_speed: " << descent_speed << " m/s\n";
-        std::cout << "  Default min_floor_altitude: " << min_floor_altitude << " meters\n";
-        std::cout << "  Default target_beacon_range (Base): " << target_beacon_range << " meters\n"; // Updated desc
-        std::cout << "  Default beacon_range_tolerance: " << beacon_range_tolerance << " meters\n";
-        std::cout << "  Default ascent_speed: " << ascent_speed << " m/s\n";
-        std::cout << "  Default complex_cycles: " << complex_cycles << "\n";
-        std::cout << "  Default lateral_step_meters: " << lateral_step_meters << " meters\n"; // Renamed
+        std::cout << "Preferences file ('preferences.txt') not found. Using default values:" << std::endl; // Logged
+        std::cout << "  Default TARGET_BEACON_ID: " << TARGET_BEACON_ID << std::endl; // Logged
+        std::cout << "  Default targetDistance: " << targetDistance << " meters" << std::endl; // Logged
+        std::cout << "  Default targetAzimuth (Initial): " << targetAzimuth << " degrees" << std::endl; // Logged
+        std::cout << "  Default Kp_forward: " << Kp_forward << std::endl; // Logged
+        std::cout << "  Default max_forward_speed: " << max_forward_speed << " m/s" << std::endl; // Logged
+        std::cout << "  Default forward_dead_zone: " << forward_dead_zone << " meters" << std::endl; // Logged
+        std::cout << "  Default Kp_lateral: " << Kp_lateral << std::endl; // Logged
+        std::cout << "  Default max_lateral_speed: " << max_lateral_speed << " m/s" << std::endl; // Logged
+        std::cout << "  Default azimuth_dead_zone: " << azimuth_dead_zone << " degrees" << std::endl; // Logged
+        std::cout << "  Default position_distance_tolerance: " << position_distance_tolerance << " meters" << std::endl; // Logged
+        std::cout << "  Default position_azimuth_tolerance: " << position_azimuth_tolerance << " degrees" << std::endl; // Logged
+        std::cout << "  Default descent_speed: " << descent_speed << " m/s" << std::endl; // Logged
+        std::cout << "  Default min_floor_altitude: " << min_floor_altitude << " meters" << std::endl; // Logged
+        std::cout << "  Default target_beacon_range (Base): " << target_beacon_range << " meters" << std::endl; // Logged Updated desc
+        std::cout << "  Default beacon_range_tolerance: " << beacon_range_tolerance << " meters" << std::endl; // Logged
+        std::cout << "  Default ascent_speed: " << ascent_speed << " m/s" << std::endl; // Logged
+        std::cout << "  Default complex_cycles: " << complex_cycles << std::endl; // Logged
+        std::cout << "  Default lateral_step_meters: " << lateral_step_meters << " meters" << std::endl; // Logged Renamed
     }
 }
 
@@ -208,41 +336,38 @@ struct RadarObject {
 
 // Display full radar object details
 void displayRadarObjects(const std::vector<RadarObject>& objects) {
-    // ... (remains unchanged) ...
     for (const auto& obj : objects) {
-        std::cout << "Radar Object:\n"
-                  << "  Timestamp: " << obj.timestamp << "\n"
-                  << "  Sensor: " << obj.sensor << "\n"
-                  << "  Source: " << obj.src << "\n"
-                  << "  ID: " << obj.ID << "\n"
-                  << "  X: " << obj.X << " Y: " << obj.Y << " Z: " << obj.Z << "\n"
-                  << "  Xdir: " << obj.Xdir << " Ydir: " << obj.Ydir << " Zdir: " << obj.Zdir << "\n"
-                  << "  Range: " << obj.Range << " Range Rate: " << obj.RangeRate << "\n"
-                  << "  Power: " << obj.Pwr << " Azimuth: " << obj.Az << " Elevation: " << obj.El << "\n"
-                  << "  Xsize: " << obj.Xsize << " Ysize: " << obj.Ysize << " Zsize: " << obj.Zsize << "\n"
-                  << "  Confidence: " << obj.Conf << "\n"
-                  << "----------------------------------------\n";
+        std::cout << "Radar Object:\n" // Logged
+                  << "  Timestamp: " << obj.timestamp << "\n" // Logged
+                  << "  Sensor: " << obj.sensor << "\n" // Logged
+                  << "  Source: " << obj.src << "\n" // Logged
+                  << "  ID: " << obj.ID << "\n" // Logged
+                  << "  X: " << obj.X << " Y: " << obj.Y << " Z: " << obj.Z << "\n" // Logged
+                  << "  Xdir: " << obj.Xdir << " Ydir: " << obj.Ydir << " Zdir: " << obj.Zdir << "\n" // Logged
+                  << "  Range: " << obj.Range << " Range Rate: " << obj.RangeRate << "\n" // Logged
+                  << "  Power: " << obj.Pwr << " Azimuth: " << obj.Az << " Elevation: " << obj.El << "\n" // Logged
+                  << "  Xsize: " << obj.Xsize << " Ysize: " << obj.Ysize << " Zsize: " << obj.Zsize << "\n" // Logged
+                  << "  Confidence: " << obj.Conf << "\n" // Logged
+                  << "----------------------------------------" << std::endl; // Logged
     }
 }
 
 // Display minimal radar object details
 void displayRadarObjectsMinimal(const std::vector<RadarObject>& objects) {
-    // ... (remains unchanged) ...
     for (const auto& obj : objects) {
-        std::cout << "Radar Object (Minimal):\n"
-                  << "  Timestamp: " << obj.timestamp << "\n"
-                  << "  Sensor: " << obj.sensor << "\n"
-                  << "  ID: " << obj.ID << "\n"
-                  << "  Range: " << obj.Range << "\n"
-                  << "  Azimuth: " << obj.Az << "\n"
-                  << "  Elevation: " << obj.El << "\n"
-                  << "----------------------------------------\n";
+        std::cout << "Radar Object (Minimal):\n" // Logged
+                  << "  Timestamp: " << obj.timestamp << "\n" // Logged
+                  << "  Sensor: " << obj.sensor << "\n" // Logged
+                  << "  ID: " << obj.ID << "\n" // Logged
+                  << "  Range: " << obj.Range << "\n" // Logged
+                  << "  Azimuth: " << obj.Az << "\n" // Logged
+                  << "  Elevation: " << obj.El << "\n" // Logged
+                  << "----------------------------------------" << std::endl; // Logged
     }
 }
 
-// --- ORIGINAL FUNCTION - DO NOT EDIT ---
+// --- ORIGINAL FUNCTION - DO NOT EDIT -- (Except for logging) ---
 void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
-    // ... (remains unchanged) ...
     for (const auto& obj : objects) {
          if (stopProcessingFlag.load()) return;
         std::string ts_cleaned = obj.timestamp;
@@ -275,15 +400,15 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
                                           DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
                                           DJI::OSDK::Control::STABLE_ENABLE;
                     DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, 0, 0);
-                    std::cout << "Control Status: \n"
-                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
-                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
-                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ")" << std::endl;
-                    std::cout << "--------------------------------------\n";
+                    std::cout << "Control Status: \n" // Logged
+                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
+                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n" // Logged (Truncated for brevity)
+                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ")" << std::endl; // Logged
+                    std::cout << "--------------------------------------" << std::endl; // Logged
                     vehicle->control->flightCtrl(ctrlData);
                 } else if (hasAnonData || foundTargetBeacon) {
-                     std::cout << "(Flight Control Disabled or Not Available)" << std::endl;
-                     std::cout << "--------------------------------------\n";
+                     std::cout << "(Flight Control Disabled or Not Available)" << std::endl; // Logged
+                     std::cout << "--------------------------------------" << std::endl; // Logged
                 }
             }
             currentSecond = objSecond;
@@ -310,9 +435,8 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
 // --- END ORIGINAL FUNCTION ---
 
 
-// --- FUNCTION FOR SIMPLE VERTICAL TEST [x] - DO NOT EDIT ---
+// --- FUNCTION FOR SIMPLE VERTICAL TEST [x] - DO NOT EDIT -- (Except for logging) ---
 void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
-    // ... (remains unchanged) ...
     static bool descend_active = false;
     static bool ascent_active = false;
     static std::thread::id current_thread_id;
@@ -320,7 +444,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
         descend_active = false;
         ascent_active = false;
         current_thread_id = std::this_thread::get_id();
-        std::cout << "[Simple Vert] State reset for new thread run." << std::endl;
+        std::cout << "[Simple Vert] State reset for new thread run." << std::endl; // Logged
     }
 
     for (const auto& obj : objects) {
@@ -357,7 +481,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
                     bool distance_ok = hasAnonData && (std::abs(lowestRange - targetDistance) <= position_distance_tolerance);
                     bool azimuth_ok = foundTargetBeacon && !std::isnan(targetBeaconAzimuth) && (std::abs(targetBeaconAzimuth - targetAzimuth) <= position_azimuth_tolerance);
                     if (distance_ok && azimuth_ok && !descend_active && !ascent_active) {
-                        std::cout << "[Simple Vert] Position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl;
+                        std::cout << "[Simple Vert] Position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl; // Logged
                         descend_active = true;
                     }
                     if (descend_active && !ascent_active) {
@@ -368,7 +492,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
                         } else {
                             velocity_z = 0.0f;
                             vertical_status = "Min Alt Reached, Starting Ascent";
-                            std::cout << "[Simple Vert] Minimum altitude reached. Starting ascent phase." << std::endl;
+                            std::cout << "[Simple Vert] Minimum altitude reached. Starting ascent phase." << std::endl; // Logged
                             ascent_active = true;
                             descend_active = false;
                         }
@@ -385,31 +509,31 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
                         } else {
                             velocity_z = 0.0f;
                             vertical_status = "Ascending (Beacon Lost)";
-                            std::cerr << "[Simple Vert] Warning: Beacon lost during ascent phase. Hovering." << std::endl;
+                            std::cerr << "[Simple Vert] Warning: Beacon lost during ascent phase. Hovering." << std::endl; // Logged
                         }
                     }
                     uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY |
                                           DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY |
                                           DJI::OSDK::Control::STABLE_ENABLE;
                     DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, 0);
-                    std::cout << "[Simple Vert] Control Status: \n"
-                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
-                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
-                              << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
-                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n"
-                              << "Vertical Status: " << vertical_status << " | Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl;
-                    std::cout << "--------------------------------------\n";
+                    std::cout << "[Simple Vert] Control Status: \n" // Logged
+                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
+                              << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n" // Logged (Truncated)
+                              << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n" // Logged (Truncated)
+                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n" // Logged
+                              << "Vertical Status: " << vertical_status << " | Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl; // Logged
+                    std::cout << "--------------------------------------" << std::endl; // Logged
                     vehicle->control->flightCtrl(ctrlData);
                 } else if (hasAnonData || foundTargetBeacon) {
                      std::string status = "[Simple Vert] (Flight Control Disabled or Not Available)";
                      if (enableControl && vehicle && !vehicle->subscribe) {
                          status = "[Simple Vert] (Vehicle Subscribe Not Available - Cannot get height)";
                      }
-                     std::cout << status << std::endl;
-                     std::cout << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
-                               << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n"
-                               << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << std::endl;
-                     std::cout << "--------------------------------------\n";
+                     std::cout << status << std::endl; // Logged
+                     std::cout << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
+                               << "TargetAzimuth=" << targetAzimuth << " | CurrentAzimuth=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n" // Logged (Truncated)
+                               << "TargetBeaconRange=" << target_beacon_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"; // Logged (Truncated)
+                     std::cout << "--------------------------------------" << std::endl; // Logged
                 }
             }
             currentSecond = objSecond;
@@ -436,7 +560,7 @@ void extractBeaconAndWallData_FullTest(const std::vector<RadarObject>& objects, 
 // --- END FUNCTION FOR SIMPLE VERTICAL TEST ---
 
 
-// --- COMPLEX VERTICAL TEST FUNCTION [c] ---
+// --- COMPLEX VERTICAL TEST FUNCTION [c] --- (Logging added)
 // Implements multi-cycle descent/ascent with lateral step (meters) and dynamic range target
 void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& objects, Vehicle* vehicle, bool enableControl) {
 
@@ -455,7 +579,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
         current_target_lateral_offset_meters = 0.0f;
         current_target_azimuth_offset = 0.0f;
         current_thread_id = std::this_thread::get_id();
-        std::cout << "[Complex Vert] State reset for new thread run." << std::endl;
+        std::cout << "[Complex Vert] State reset for new thread run." << std::endl; // Logged
     }
 
     for (const auto& obj : objects) {
@@ -478,7 +602,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
         if (objSecond != currentSecond) {
             if (!currentSecond.empty() && (hasAnonData || foundTargetBeacon)) {
 
-                // --- Movement Logic ---
+                // --- Movement Logic --
                 if (enableControl && vehicle != nullptr && vehicle->control != nullptr && vehicle->subscribe != nullptr) {
                     float velocity_x = 0.0f;
                     float velocity_y = 0.0f;
@@ -505,7 +629,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                         }
                     } else if (current_phase != ComplexPhase::INITIAL_POSITIONING && current_phase != ComplexPhase::FINISHED) {
                         velocity_y = 0.0f;
-                         std::cerr << "[Complex Vert] Warning: Beacon lost during active phase. Halting lateral motion." << std::endl;
+                         std::cerr << "[Complex Vert] Warning: Beacon lost during active phase. Halting lateral motion." << std::endl; // Logged
                     }
                     // --- End Horizontal Velocity Calculation ---
 
@@ -522,7 +646,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                             velocity_z = 0.0f;
                             // Use initial azimuth dead zone for the very first alignment check
                             if (is_distance_aligned && foundTargetBeacon && !std::isnan(azimuth_error) && (std::abs(azimuth_error) <= azimuth_dead_zone)) {
-                                std::cout << "[Complex Vert] Initial position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting Cycle " << current_cycle + 1 << " Descent." << std::endl;
+                                std::cout << "[Complex Vert] Initial position confirmed (Dist: " << lowestRange << ", Az: " << targetBeaconAzimuth << "). Starting Cycle " << current_cycle + 1 << "." << std::endl; // Logged
                                 current_phase = ComplexPhase::DESCENDING;
                             }
                             break;
@@ -541,11 +665,11 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                     current_target_azimuth_offset = std::atan(current_target_lateral_offset_meters / targetDistance) * 180.0 / M_PI;
                                 } else {
                                     current_target_azimuth_offset = 0.0; // Or handle error appropriately
-                                    std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl;
+                                    std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl; // Logged
                                 }
                                 runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset; // Update for logging
-                                std::cout << "[Complex Vert] Min altitude reached. New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl;
-                                std::cout << "[Complex Vert] Aligning for ascent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl;
+                                std::cout << "[Complex Vert] Min altitude reached. New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl; // Logged
+                                std::cout << "[Complex Vert] Aligning for ascent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl; // Logged
                                 current_phase = ComplexPhase::ALIGNING_FOR_ASCENT;
                             }
                             break;
@@ -555,7 +679,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                             velocity_z = 0.0f;
                             current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
                             if (is_azimuth_aligned) { // Check alignment against calculated runtime target azimuth
-                                std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting ascent." << std::endl;
+                                std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting ascent." << std::endl; // Logged
                                 current_phase = ComplexPhase::ASCENDING;
                             }
                             // else: velocity_x and velocity_y continue to drive alignment
@@ -588,10 +712,10 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                         // Target dynamic range met
                                         velocity_z = 0.0f;
                                         current_cycle++;
-                                        std::cout << "[Complex Vert] Target beacon range reached (Range: " << current_beacon_range << ", Target: " << runtime_target_slant_range << "). Cycle " << current_cycle << " complete." << std::endl;
+                                        std::cout << "[Complex Vert] Target beacon range reached (Range: " << current_beacon_range << ", Target: " << runtime_target_slant_range << "). Cycle " << current_cycle << " completed." << std::endl; // Logged
                                         if (current_cycle >= complex_cycles) {
                                             current_phase = ComplexPhase::FINISHED;
-                                            std::cout << "[Complex Vert] All cycles finished." << std::endl;
+                                            std::cout << "[Complex Vert] All cycles finished." << std::endl; // Logged
                                         } else {
                                             // Increment desired lateral offset for next descent
                                             current_target_lateral_offset_meters += lateral_step_meters;
@@ -600,11 +724,11 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                                 current_target_azimuth_offset = std::atan(current_target_lateral_offset_meters / targetDistance) * 180.0 / M_PI;
                                             } else {
                                                 current_target_azimuth_offset = 0.0;
-                                                std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl;
+                                                std::cerr << "[Complex Vert] Error: targetDistance is near zero, cannot calculate target azimuth." << std::endl; // Logged
                                             }
                                             runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset; // Update for logging
-                                            std::cout << "[Complex Vert] New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl;
-                                            std::cout << "[Complex Vert] Aligning for next descent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl;
+                                            std::cout << "[Complex Vert] New Target Lateral Offset: " << current_target_lateral_offset_meters << "m." << std::endl; // Logged
+                                            std::cout << "[Complex Vert] Aligning for next descent (Calculated Target Az Total: " << runtime_target_azimuth << " deg)." << std::endl; // Logged
                                             current_phase = ComplexPhase::ALIGNING_FOR_DESCENT;
                                         }
                                     }
@@ -612,7 +736,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                                     // Beacon lost during ascent
                                     velocity_z = 0.0f;
                                     phase_status_str = "Ascending (Beacon Lost)";
-                                    std::cerr << "[Complex Vert] Warning: Beacon lost during ascent. Hovering vertically." << std::endl;
+                                    std::cerr << "[Complex Vert] Warning: Beacon lost during ascent. Hovering vertically." << std::endl; // Logged
                                 }
                             } // <<<--- End new scope for case variables
                             break;
@@ -622,7 +746,7 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                              velocity_z = 0.0f;
                              current_height = vehicle->subscribe->getValue<Telemetry::TOPIC_HEIGHT_FUSION>(); // Get height for logging
                              if (is_azimuth_aligned) { // Check alignment against calculated runtime target azimuth
-                                 std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl;
+                                 std::cout << "[Complex Vert] Azimuth aligned (Az: " << targetBeaconAzimuth << "). Starting descent." << std::endl; // Logged
                                  current_phase = ComplexPhase::DESCENDING;
                              }
                              // else: velocity_x and velocity_y continue to drive alignment
@@ -645,25 +769,24 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                     DJI::OSDK::Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, velocity_z, 0);
 
                     // Log control status summary - Updated Azimuth/Lateral info
-                    std::cout << "[Complex Vert] Control Status: \n"
-                              << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << phase_status_str << "\n"
-                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
-                              << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A")
-                              << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n"
-                              << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"
-                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n"
-                              << "Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl;
-                    std::cout << "--------------------------------------\n";
+                    std::cout << "[Complex Vert] Control Status: \n" // Logged
+                              << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << phase_status_str << "\n" // Logged
+                              << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
+                              << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") // Logged (Truncated)
+                              << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n" // Logged
+                              << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n" // Logged (Truncated)
+                              << "Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ", Z=" << velocity_z << ")\n" // Logged
+                              << "Current Height: " << (current_height >= 0.0f ? std::to_string(current_height) : "N/A") << std::endl; // Logged
+                    std::cout << "--------------------------------------" << std::endl; // Logged
 
                     vehicle->control->flightCtrl(ctrlData);
 
                 } else if (hasAnonData || foundTargetBeacon) { // Control disabled or unavailable
-                     // ... (logging for disabled control remains the same, maybe update az display) ...
                      std::string status = "[Complex Vert] (Flight Control Disabled or Not Available)";
                      if (enableControl && vehicle && !vehicle->subscribe) {
                          status = "[Complex Vert] (Vehicle Subscribe Not Available - Cannot get height)";
                      }
-                     std::cout << status << std::endl;
+                     std::cout << status << std::endl; // Logged
                      float runtime_target_azimuth = targetAzimuth + current_target_azimuth_offset;
                      float runtime_target_slant_range = target_beacon_range;
                       if (current_phase == ComplexPhase::ASCENDING || current_phase == ComplexPhase::ALIGNING_FOR_DESCENT) {
@@ -674,12 +797,12 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
                       if(foundTargetBeacon && !std::isnan(targetBeaconAzimuth)) {
                           azimuth_error = targetBeaconAzimuth - runtime_target_azimuth;
                       }
-                     std::cout << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << static_cast<int>(current_phase) << "\n"
-                               << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n"
-                               << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A")
-                               << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n"
-                               << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << std::endl;
-                     std::cout << "--------------------------------------\n";
+                     std::cout << "Cycle: " << current_cycle << "/" << complex_cycles << " | Phase: " << static_cast<int>(current_phase) << "\n" // Logged
+                               << "TargetWall=" << targetDistance << " | CurrentWall=" << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" // Logged
+                               << "TargetLateralOffset=" << current_target_lateral_offset_meters << "m | TargetAzTotal(calc)=" << runtime_target_azimuth << "deg | CurrentAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") // Logged (Truncated)
+                               << " | AzError=" << (!std::isnan(azimuth_error) ? std::to_string(azimuth_error) : "N/A") << "\n" // Logged
+                               << "TargetBeaconRange(Dyn)=" << runtime_target_slant_range << " | CurrentBeaconRange=" << (foundTargetBeacon && !std::isnan(current_beacon_range) ? std::to_string(current_beacon_range) : "N/A") << "\n"; // Logged (Truncated)
+                     std::cout << "--------------------------------------" << std::endl; // Logged
                 }
             }
 
@@ -712,7 +835,6 @@ void extractBeaconAndWallData_ComplexVertical(const std::vector<RadarObject>& ob
 
 // Parses JSON radar data
 std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
-    // ... (remains unchanged) ...
     std::vector<RadarObject> radarObjects;
     if (jsonData.empty() || jsonData == "{}") return radarObjects;
 
@@ -722,7 +844,7 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
 
         for (const auto& obj : jsonFrame["objects"]) {
             if (!obj.is_object()) {
-                std::cerr << "Skipping non-object item in 'objects' array." << std::endl;
+                std::cerr << "Skipping non-object item in 'objects' array." << std::endl; // Logged
                 continue;
             }
             RadarObject radarObj;
@@ -740,10 +862,10 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
             radarObjects.push_back(radarObj);
         }
     } catch (const json::parse_error& e) {
-        std::cerr << "JSON Parsing Error: " << e.what() << " at offset " << e.byte << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl;
+        std::cerr << "JSON Parsing Error: " << e.what() << " at offset " << e.byte << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl; // Logged
         return {};
     } catch (const json::type_error& e) {
-        std::cerr << "JSON Type Error: " << e.what() << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl;
+        std::cerr << "JSON Type Error: " << e.what() << ". Data: [" << jsonData.substr(0, 200) << "...]" << std::endl; // Logged
         return {};
     }
     return radarObjects;
@@ -751,27 +873,24 @@ std::vector<RadarObject> parseRadarData(const std::string& jsonData) {
 
 // Runs the python bridge script
 void runPythonBridge(const std::string& scriptName) {
-    // ... (remains unchanged) ...
-    std::cout << "Starting Python bridge (" << scriptName << ")...\n";
+    std::cout << "Starting Python bridge (" << scriptName << ")..." << std::endl; // Logged
     if (std::system(("python3 " + scriptName + " &").c_str()) != 0) {
-        std::cerr << "Failed to start Python bridge script '" << scriptName << "'.\n";
+        std::cerr << "Failed to start Python bridge script '" << scriptName << "'." << std::endl; // Logged
     }
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    std::cout << "Python bridge potentially started.\n";
+    std::cout << "Python bridge potentially started." << std::endl; // Logged
 }
 
 // Stops the python bridge script
 void stopPythonBridge(const std::string& scriptName) {
-    // ... (remains unchanged) ...
-    std::cout << "Stopping Python bridge (" << scriptName << ")...\n";
+    std::cout << "Stopping Python bridge (" << scriptName << ")..." << std::endl; // Logged
     std::system(("pkill -f " + scriptName).c_str()); // Ignore result
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    std::cout << "Sent SIGTERM to " << scriptName << ".\n";
+    std::cout << "Sent SIGTERM to " << scriptName << "." << std::endl; // Logged
 }
 
 // Connects to the python bridge via TCP
 bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& socket) {
-    // ... (remains unchanged) ...
     tcp::resolver resolver(io_context);
     int retries = 5;
     while (retries-- > 0) {
@@ -780,18 +899,18 @@ bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& soc
             auto endpoints = resolver.resolve("127.0.0.1", "5000");
             boost::system::error_code ec;
             boost::asio::connect(socket, endpoints, ec);
-            if (!ec) { std::cout << "Connected to Python bridge.\n"; return true; }
-            else { std::cerr << "Connection attempt failed: " << ec.message() << std::endl; }
+            if (!ec) { std::cout << "Connected to Python bridge." << std::endl; return true; } // Logged
+            else { std::cerr << "Connection attempt failed: " << ec.message() << std::endl; } // Logged
         } catch (const std::exception& e) {
-            std::cerr << "Exception during connection attempt: " << e.what() << std::endl;
+            std::cerr << "Exception during connection attempt: " << e.what() << std::endl; // Logged
         }
         if(retries > 0 && !stopProcessingFlag.load()) {
-             std::cout << "Retrying connection in 2 seconds... (" << retries << " attempts left)" << std::endl;
+             std::cout << "Retrying connection in 2 seconds... (" << retries << " attempts left)" << std::endl; // Logged
              for (int i = 0; i < 2 && !stopProcessingFlag.load(); ++i) std::this_thread::sleep_for(std::chrono::seconds(1));
-             if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; }
-        } else if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; }
+             if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; } // Logged
+        } else if (stopProcessingFlag.load()) { std::cout << "Stop requested during connection retry." << std::endl; break; } // Logged
     }
-     std::cerr << "Failed to connect to Python bridge after multiple attempts." << std::endl;
+     std::cerr << "Failed to connect to Python bridge after multiple attempts." << std::endl; // Logged
      return false;
 }
 
@@ -810,8 +929,7 @@ enum class ProcessingMode {
 
 // Processing loop function - No reconnection, releases authority on exit
 void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle, bool enableControlCmd, ProcessingMode mode) {
-    // ... (remains unchanged) ...
-    std::cout << "Processing thread started. Bridge: " << bridgeScriptName << ", Control Enabled: " << std::boolalpha << enableControlCmd << ", Mode: " << static_cast<int>(mode) << std::endl;
+    std::cout << "Processing thread started. Bridge: " << bridgeScriptName << ", Control Enabled: " << std::boolalpha << enableControlCmd << ", Mode: " << static_cast<int>(mode) << std::endl; // Logged
     int functionTimeout = 1;
 
     runPythonBridge(bridgeScriptName);
@@ -819,18 +937,18 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
     tcp::socket socket(io_context);
 
     if (!connectToPythonBridge(io_context, socket)) {
-        std::cerr << "Processing thread: Initial connection failed. Exiting thread." << std::endl;
+        std::cerr << "Processing thread: Initial connection failed. Exiting thread." << std::endl; // Logged
         stopPythonBridge(bridgeScriptName);
         if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
-            std::cout << "[Processing Thread] Releasing control authority (initial connection fail)..." << std::endl;
+            std::cout << "[Processing Thread] Releasing control authority (initial connection fail)..." << std::endl; // Logged
             ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
-            if (ACK::getError(releaseAck)) ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority");
-            else std::cout << "[Processing Thread] Control authority released." << std::endl;
+            if (ACK::getError(releaseAck)) ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority"); // Logged via ACK
+            else std::cout << "[Processing Thread] Control authority released." << std::endl; // Logged
         }
         return; // Exit thread
     }
 
-    std::cout << "Processing thread: Connection successful. Reading data stream..." << std::endl;
+    std::cout << "Processing thread: Connection successful. Reading data stream..." << std::endl; // Logged
     std::string received_data_buffer;
     std::array<char, 4096> read_buffer;
     bool connection_error_occurred = false;
@@ -846,8 +964,8 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
         size_t len = socket.read_some(boost::asio::buffer(read_buffer), error);
 
         if (error) { // Handle read error
-            if (error == boost::asio::error::eof) std::cerr << "Processing thread: Connection closed by Python bridge (EOF)." << std::endl;
-            else std::cerr << "Processing thread: Error reading from socket: " << error.message() << std::endl;
+            if (error == boost::asio::error::eof) std::cerr << "Processing thread: Connection closed by Python bridge (EOF)." << std::endl; // Logged
+            else std::cerr << "Processing thread: Error reading from socket: " << error.message() << std::endl; // Logged
             connection_error_occurred = true;
             break;
         }
@@ -883,7 +1001,7 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
                             }
                         }
                     } catch (const std::exception& e) {
-                         std::cerr << "Error processing data: " << e.what() << "\nSnippet: [" << jsonData.substr(0, 100) << "...]" << std::endl;
+                         std::cerr << "Error processing data: " << e.what() << "\nSnippet: [" << jsonData.substr(0, 100) << "...]" << std::endl; // Logged
                     }
                 }
             }
@@ -894,36 +1012,35 @@ void processingLoopFunction(const std::string bridgeScriptName, Vehicle* vehicle
     }
 
     // --- Cleanup ---
-    if (stopProcessingFlag.load()) std::cout << "[Processing Thread] Stop requested manually." << std::endl;
-    else if (connection_error_occurred) std::cout << "[Processing Thread] Exiting due to connection error." << std::endl;
-    else std::cout << "[Processing Thread] Data stream ended." << std::endl;
+    if (stopProcessingFlag.load()) std::cout << "[Processing Thread] Stop requested manually." << std::endl; // Logged
+    else if (connection_error_occurred) std::cout << "[Processing Thread] Exiting due to connection error." << std::endl; // Logged
+    else std::cout << "[Processing Thread] Data stream ended." << std::endl; // Logged
 
     if (socket.is_open()) { socket.close(); }
     stopPythonBridge(bridgeScriptName);
 
     // Release Control Authority if enabled
     if (enableControlCmd && vehicle != nullptr && vehicle->control != nullptr) {
-        std::cout << "[Processing Thread] Sending final zero velocity command..." << std::endl;
-        uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE;
+        std::cout << "[Processing Thread] Sending final zero velocity command..." << std::endl; // Logged
+        uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE; // Truncated
         DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
         vehicle->control->flightCtrl(stopData);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        std::cout << "[Processing Thread] Releasing control authority..." << std::endl;
+        std::cout << "[Processing Thread] Releasing control authority..." << std::endl; // Logged
         ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
         if (ACK::getError(releaseAck)) {
-             ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority (on exit)");
-             std::cerr << "[Processing Thread] Warning: Failed to release control authority on exit." << std::endl;
+             ACK::getErrorCodeMessage(releaseAck, "[Processing Thread] releaseCtrlAuthority (on exit)"); // Logged via ACK
+             std::cerr << "[Processing Thread] Warning: Failed to release control authority on exit." << std::endl; // Logged
         } else {
-             std::cout << "[Processing Thread] Control authority released." << std::endl;
+             std::cout << "[Processing Thread] Control authority released." << std::endl; // Logged
         }
     }
-    std::cout << "Processing thread finished." << std::endl;
+    std::cout << "Processing thread finished." << std::endl; // Logged
 }
 
 // Helper function to get mode name string
 std::string getModeName(uint8_t mode) {
-    // ... (remains unchanged) ...
     switch(mode) {
         case DJI::OSDK::VehicleStatus::DisplayMode::MODE_MANUAL_CTRL: return "MANUAL_CTRL";
         case DJI::OSDK::VehicleStatus::DisplayMode::MODE_ATTITUDE: return "ATTITUDE";
@@ -936,8 +1053,7 @@ std::string getModeName(uint8_t mode) {
 
 // Background thread function for monitoring
 void monitoringLoopFunction(Vehicle* vehicle) {
-    // ... (remains unchanged) ...
-    std::cout << "[Monitoring] Thread started." << std::endl;
+    std::cout << "[Monitoring] Thread started." << std::endl; // Logged
     bool telemetry_timed_out = false;
     bool warned_unexpected_status = false;
     uint8_t previous_flight_status = DJI::OSDK::VehicleStatus::FlightStatus::STOPED;
@@ -949,7 +1065,7 @@ void monitoringLoopFunction(Vehicle* vehicle) {
     while (!stopMonitoringFlag.load()) {
         if (vehicle == nullptr || vehicle->subscribe == nullptr) {
              if (!telemetry_timed_out) {
-                 std::cerr << "\n**** MONITORING ERROR: Vehicle/subscribe object null. Stopping. ****\n" << std::endl;
+                 std::cerr << "\n**** MONITORING ERROR: Vehicle/subscribe object null. Stopping. ****" << std::endl << std::endl; // Logged
                  telemetry_timed_out = true;
              }
              break;
@@ -963,7 +1079,7 @@ void monitoringLoopFunction(Vehicle* vehicle) {
             time_t current_time = std::time(nullptr);
             last_valid_poll_time = current_time;
             if (telemetry_timed_out) {
-                 std::cout << "[Monitoring] Telemetry poll recovered." << std::endl;
+                 std::cout << "[Monitoring] Telemetry poll recovered." << std::endl; // Logged
                  telemetry_timed_out = false;
             }
 
@@ -972,7 +1088,7 @@ void monitoringLoopFunction(Vehicle* vehicle) {
                 if ( (previous_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::IN_AIR) &&
                      (current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::ON_GROUND || current_flight_status == DJI::OSDK::VehicleStatus::FlightStatus::STOPED) &&
                      !warned_unexpected_status) {
-                     std::cerr << "\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " << (int)current_flight_status << ". ****\n" << std::endl;
+                     std::cerr << "\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " << (int)current_flight_status << ". ****" << std::endl << std::endl; // Logged
                      warned_unexpected_status = true;
                 }
             } else {
@@ -984,7 +1100,7 @@ void monitoringLoopFunction(Vehicle* vehicle) {
             bool is_expected_mode = (current_display_mode == EXPECTED_SDK_MODE);
             if (is_expected_mode) {
                 if (!in_sdk_control_mode) {
-                    std::cout << "\n**** MONITORING INFO: Entered SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << " / " << (int)EXPECTED_SDK_MODE << ") ****\n" << std::endl;
+                    std::cout << "\n**** MONITORING INFO: Entered SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << " / " << (int)EXPECTED_SDK_MODE << ") ****" << std::endl << std::endl; // Logged
                     in_sdk_control_mode = true;
                     warned_not_in_sdk_mode = false;
                 }
@@ -993,7 +1109,7 @@ void monitoringLoopFunction(Vehicle* vehicle) {
                       // Check if processing thread is stopping/stopped
                       if (!stopProcessingFlag.load() && processingThread.joinable()) {
                           std::string current_mode_name = getModeName(current_display_mode);
-                          std::cerr << "\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << "). Current: " << current_mode_name << " (" << (int)current_display_mode << "). RC may have control. ****\n" << std::endl;
+                          std::cerr << "\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << "). Current: " << current_mode_name << " (" << (int)current_display_mode << ") ****" << std::endl << std::endl; // Logged (Truncated)
                           warned_not_in_sdk_mode = true;
                       }
                       in_sdk_control_mode = false;
@@ -1001,7 +1117,7 @@ void monitoringLoopFunction(Vehicle* vehicle) {
             }
         } else { // Invalid poll
             if (!telemetry_timed_out) {
-                 std::cerr << "\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" << (int)current_flight_status << "). ****\n" << std::endl;
+                 std::cerr << "\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" << (int)current_flight_status << "). ****" << std::endl << std::endl; // Logged
                  telemetry_timed_out = true;
             }
         }
@@ -1010,14 +1126,14 @@ void monitoringLoopFunction(Vehicle* vehicle) {
         time_t current_time_for_timeout_check = std::time(nullptr);
         if (last_valid_poll_time > 0 && (current_time_for_timeout_check - last_valid_poll_time > TELEMETRY_TIMEOUT_SECONDS)) {
             if (!telemetry_timed_out) {
-                std::cerr << "\n**** MONITORING TIMEOUT: No valid telemetry for over " << TELEMETRY_TIMEOUT_SECONDS << " seconds. ****\n" << std::endl;
+                std::cerr << "\n**** MONITORING TIMEOUT: No valid telemetry for over " << TELEMETRY_TIMEOUT_SECONDS << " seconds. ****" << std::endl << std::endl; // Logged
                 telemetry_timed_out = true;
             }
         } else if (last_valid_poll_time == 0) { // Check if never received first poll
              static time_t start_time = 0; if (start_time == 0) start_time = current_time_for_timeout_check;
              if (current_time_for_timeout_check - start_time > TELEMETRY_TIMEOUT_SECONDS * 2) {
                   if (!telemetry_timed_out) {
-                       std::cerr << "\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " << TELEMETRY_TIMEOUT_SECONDS * 2 << " seconds. ****\n" << std::endl;
+                       std::cerr << "\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " << TELEMETRY_TIMEOUT_SECONDS * 2 << " seconds. ****" << std::endl << std::endl; // Logged
                        telemetry_timed_out = true;
                   }
              }
@@ -1025,19 +1141,23 @@ void monitoringLoopFunction(Vehicle* vehicle) {
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    std::cout << "[Monitoring] Thread finished." << std::endl;
+    std::cout << "[Monitoring] Thread finished." << std::endl; // Logged
 }
 
 
 int main(int argc, char** argv) {
-    // ... (remains unchanged until Process Command section) ...
+    // --- Instantiate LogRedirector early in main ---
+    // This object's lifetime controls the redirection.
+    // It will automatically restore streams when it goes out of scope at the end of main.
+    LogRedirector logger("run_log.txt");
+
     loadPreferences(); // Load preferences first
 
     // --- Mode Selection Removed - Hardcoded to Live Mode ---
     bool enableFlightControl = true;
     // defaultPythonBridgeScript is already set globally
 
-    std::cout << "Starting in Live Mode. Flight control enabled. Default bridge: " << defaultPythonBridgeScript << "\n";
+    std::cout << "Starting in Live Mode. Flight control enabled. Default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
 
 
     // --- OSDK Initialization ---
@@ -1050,36 +1170,36 @@ int main(int argc, char** argv) {
     bool monitoringEnabled = false;
 
     if (enableFlightControl) { // This will always be true now unless OSDK init fails
-        std::cout << "Initializing DJI OSDK...\n";
+        std::cout << "Initializing DJI OSDK..." << std::endl; // Logged
         linuxEnvironment = new LinuxSetup(argc, argv);
         vehicle = linuxEnvironment->getVehicle();
         if (vehicle == nullptr || vehicle->control == nullptr || vehicle->subscribe == nullptr) {
-            std::cerr << "ERROR: Vehicle not initialized or interfaces unavailable. Disabling flight control." << std::endl;
+            std::cerr << "ERROR: Vehicle not initialized or interfaces unavailable. Disabling flight control." << std::endl; // Logged
              if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
              vehicle = nullptr;
              enableFlightControl = false; // Fallback in case of init error
-             std::cout << "OSDK Initialization Failed. Flight control disabled." << std::endl;
+             std::cout << "OSDK Initialization Failed. Flight control disabled." << std::endl; // Logged
         } else { // OSDK Init seems OK
-            std::cout << "Attempting to obtain Control Authority...\n";
+            std::cout << "Attempting to obtain Control Authority..." << std::endl; // Logged
             ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
             if (ACK::getError(ctrlAuthAck)) {
-                 ACK::getErrorCodeMessage(ctrlAuthAck, __func__);
-                 std::cerr << "Failed to obtain control authority. Disabling flight control." << std::endl;
+                 ACK::getErrorCodeMessage(ctrlAuthAck, __func__); // Logged via ACK
+                 std::cerr << "Failed to obtain control authority. Disabling flight control." << std::endl; // Logged
                  if (linuxEnvironment) { delete linuxEnvironment; linuxEnvironment = nullptr; }
                  vehicle = nullptr;
                  enableFlightControl = false; // Fallback
-                 std::cout << "Obtaining Control Authority Failed. Flight control disabled." << std::endl;
+                 std::cout << "Obtaining Control Authority Failed. Flight control disabled." << std::endl; // Logged
             } else { // Authority Obtained
-                 std::cout << "Obtained Control Authority." << std::endl;
+                 std::cout << "Obtained Control Authority." << std::endl; // Logged
                  flightSample = new FlightSample(vehicle);
-                 std::cout << "OSDK Initialized and Flight Sample created." << std::endl;
+                 std::cout << "OSDK Initialized and Flight Sample created." << std::endl; // Logged
 
                  // --- Setup Telemetry Subscription for Monitoring (ADDED HEIGHT) ---
-                 std::cout << "Setting up Telemetry Subscription for Monitoring..." << std::endl;
+                 std::cout << "Setting up Telemetry Subscription for Monitoring..." << std::endl; // Logged
                  ACK::ErrorCode subscribeAck = vehicle->subscribe->verify(functionTimeout);
                  if (ACK::getError(subscribeAck)) {
-                      ACK::getErrorCodeMessage(subscribeAck, __func__);
-                      std::cerr << "Error verifying subscription package list. Monitoring will be disabled." << std::endl;
+                      ACK::getErrorCodeMessage(subscribeAck, __func__); // Logged via ACK
+                      std::cerr << "Error verifying subscription package list. Monitoring will be disabled." << std::endl; // Logged
                  } else {
                       // --- ADDED Telemetry::TOPIC_HEIGHT_FUSION ---
                       Telemetry::TopicName topicList[] = {
@@ -1092,104 +1212,105 @@ int main(int argc, char** argv) {
                                                                                        false, telemetrySubscriptionFrequency);
 
                       if (topicStatus) {
-                            std::cout << "Successfully initialized package " << pkgIndex << " with Flight Status, Display Mode, and Height topics." << std::endl; // Updated msg
+                            std::cout << "Successfully initialized package " << pkgIndex << " with Flight Status, Display Mode, and Height topics." << std::endl; // Logged Updated msg
                             ACK::ErrorCode startAck = vehicle->subscribe->startPackage(pkgIndex, functionTimeout);
                             if (ACK::getError(startAck)) {
-                                 ACK::getErrorCodeMessage(startAck, "startPackage");
-                                 std::cerr << "Error starting subscription package " << pkgIndex << ". Monitoring will be disabled." << std::endl;
+                                 ACK::getErrorCodeMessage(startAck, "startPackage"); // Logged via ACK
+                                 std::cerr << "Error starting subscription package " << pkgIndex << ". Monitoring will be disabled." << std::endl; // Logged
                                  vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
                             } else {
-                                 std::cout << "Successfully started package " << pkgIndex << "." << std::endl;
-                                 std::cout << "Starting monitoring thread..." << std::endl;
+                                 std::cout << "Successfully started package " << pkgIndex << "." << std::endl; // Logged
+                                 std::cout << "Starting monitoring thread..." << std::endl; // Logged
                                  stopMonitoringFlag.store(false);
                                  monitoringThread = std::thread(monitoringLoopFunction, vehicle);
                                  monitoringEnabled = true;
-                                 std::cout << "[Main] Monitoring thread launched." << std::endl;
+                                 std::cout << "[Main] Monitoring thread launched." << std::endl; // Logged
                             }
                       } else {
-                           std::cerr << "Error initializing package " << pkgIndex << " from topic list. Monitoring will be disabled." << std::endl;
+                           std::cerr << "Error initializing package " << pkgIndex << " from topic list. Monitoring will be disabled." << std::endl; // Logged
                       }
                  }
             }
         }
     }
 
-    std::cout << "INFO: Flight control is " << (enableFlightControl ? "ENABLED" : "DISABLED") << ". Proceeding to main menu.\n"; // Keep this info line
+    std::cout << "INFO: Flight control is " << (enableFlightControl ? "ENABLED" : "DISABLED") << ". Proceeding to main menu." << std::endl; // Logged Keep this info line
 
     // --- Main Command Loop ---
     bool keepRunning = true;
     while (keepRunning) {
         // --- Updated Menu Display ---
-        std::cout << "\n--- Main Menu ---\n"
-                  << (enableFlightControl ? "| [t] Monitored Takeoff                     |\n| [w] Start Wall+Beacon Following (Default) |\n| [h] Start Wall+Beacon Following (TEST)    |\n| [x] simple vertical test                  |\n| [c] complex vertical test                 |\n"
-                                          : "| [t] Takeoff (DISABLED)                    |\n| [w] Wall/Beacon Following (No Control)    |\n| [h] Wall/Beacon Following (No Control)    |\n| [x] simple vertical test (No Control)     |\n| [c] complex vertical test (No Control)    |\n")
-                  << "| [e] Process Full Radar (No Control)       |\n"
-                  << "| [f] Process Minimal Radar (No Control)    |\n"
-                  << "| [q] Quit                                  |\n"
-                  << "---------------------------------------------\n"
-                  << "Enter command: ";
+        std::cout << "\n--- Main Menu ---\n" // Logged
+                  << (enableFlightControl ? "| [t] Monitored Takeoff                     |\n| [w] Start Wall+Beacon Following (Default) |\n| [h] Start Wall+Beacon Following (TEST)    |\n| [x] Simple Vertical Test                  |\n| [c] Complex Vertical Test                 |\n" // Logged (Truncated)
+                                          : "| [t] Takeoff (DISABLED)                    |\n| [w] Wall/Beacon Following (No Control)    |\n| [h] Wall/Beacon Following (No Control)    |\n| [x] Simple Vertical Test (No Control)     |\n| [c] Complex Vertical Test (No Control)    |\n") // Logged (Truncated)
+                  << "| [e] Process Full Radar (No Control)       |\n" // Logged
+                  << "| [f] Process Minimal Radar (No Control)    |\n" // Logged
+                  << "| [q] Quit                                  |\n" // Logged
+                  << "---------------------------------------------\n" // Logged
+                  << "Enter command: "; // Logged (No endl here)
 
         std::string lineInput; char inputChar = 0;
-        if (std::getline(std::cin, lineInput)) { if (!lineInput.empty()) inputChar = lineInput[0]; }
-        else { inputChar = 'q'; if (std::cin.eof()) std::cout << "\nEOF detected. "; std::cout << "Exiting." << std::endl; }
+        if (std::getline(std::cin, lineInput)) {
+             std::cout << lineInput << std::endl; // Echo input to log
+             if (!lineInput.empty()) inputChar = lineInput[0];
+        }
+        else { inputChar = 'q'; if (std::cin.eof()) std::cout << "\nEOF detected. "; std::cout << "Exiting." << std::endl; } // Logged
 
         // Stop processing thread if starting new task ('w','e','h','f','x','c') or quitting ('q')
          if (strchr("wehfx", inputChar) != nullptr || inputChar == 'c' || inputChar == 'q') { // Added 'c'
              if (processingThread.joinable()) {
-                 std::cout << "Signalling processing thread to stop..." << std::endl;
+                 std::cout << "Signalling processing thread to stop..." << std::endl; // Logged
                  stopProcessingFlag.store(true); processingThread.join();
-                 std::cout << "Processing thread finished." << std::endl;
+                 std::cout << "Processing thread finished." << std::endl; // Logged
                  stopProcessingFlag.store(false);
              }
          }
          // Stop monitoring thread on quit
          if (inputChar == 'q' && monitoringThread.joinable()) {
-             std::cout << "Signalling monitoring thread to stop..." << std::endl;
+             std::cout << "Signalling monitoring thread to stop..." << std::endl; // Logged
              stopMonitoringFlag.store(true); monitoringThread.join();
-             std::cout << "Monitoring thread finished." << std::endl;
+             std::cout << "Monitoring thread finished." << std::endl; // Logged
              stopMonitoringFlag.store(false); monitoringEnabled = false;
          }
 
         // --- Process Command ---
         switch (inputChar) {
             case 't': // Takeoff
-                // ... (remains unchanged) ...
                 if (enableFlightControl && flightSample && vehicle && vehicle->control) {
-                    std::cout << "Attempting to obtain Control Authority for Takeoff...\n";
+                    std::cout << "Attempting to obtain Control Authority for Takeoff..." << std::endl; // Logged
                     ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
                     if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Takeoff obtainCtrlAuthority");
-                         std::cerr << "Failed to obtain control authority for takeoff." << std::endl;
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Takeoff obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority for takeoff." << std::endl; // Logged
                          break;
                     } else {
-                         std::cout << "Obtained Control Authority for Takeoff." << std::endl;
-                         flightSample->monitoredTakeoff();
+                         std::cout << "Obtained Control Authority for Takeoff." << std::endl; // Logged
+                         flightSample->monitoredTakeoff(); // Internal logging exists
                     }
                 } else {
-                     std::cout << "Flight control not enabled or available." << std::endl;
+                     std::cout << "Flight control not enabled or available." << std::endl; // Logged
                 }
                 break;
 
              case 'w': // Wall Following (Default)
              case 'h': { // Wall Following (TEST)
-                // ... (remains unchanged) ...
                  std::string bridge = (inputChar == 'w') ? defaultPythonBridgeScript : "python_bridge_LOCAL.py";
                  bool useControl = (inputChar == 'w') ? enableFlightControl : true;
-                 if (inputChar == 'h' && !enableFlightControl) { std::cout << "Error: Flight control must be enabled for TEST control.\n"; break; }
+                 if (inputChar == 'h' && !enableFlightControl) { std::cout << "Error: Flight control must be enabled for TEST control." << std::endl; break; } // Logged
 
-                 std::cout << "Starting Wall+Beacon Following using bridge: " << bridge << "\n";
+                 std::cout << "Starting Wall+Beacon Following using bridge: " << bridge << std::endl; // Logged
                  if (useControl && vehicle && vehicle->control) {
-                     std::cout << "Attempting to obtain Control Authority for Wall Following...\n";
+                     std::cout << "Attempting to obtain Control Authority for Wall Following..." << std::endl; // Logged
                      ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
                      if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Wall Following obtainCtrlAuthority");
-                         std::cerr << "Failed to obtain control authority. Cannot start with control.\n";
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Wall Following obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority. Cannot start with control." << std::endl; // Logged
                          break;
                      } else {
-                         std::cout << "Obtained Control Authority for Wall Following." << std::endl;
+                         std::cout << "Obtained Control Authority for Wall Following." << std::endl; // Logged
                      }
                  } else if (useControl) {
-                      std::cerr << "Error: Cannot start with control as OSDK is not properly initialized.\n";
+                      std::cerr << "Error: Cannot start with control as OSDK is not properly initialized." << std::endl; // Logged
                       break;
                  }
                  stopProcessingFlag.store(false);
@@ -1197,21 +1318,20 @@ int main(int argc, char** argv) {
                  break;
              }
              case 'x': { // Simple Vertical Test
-                // ... (remains unchanged) ...
-                 std::cout << "Starting Simple Vertical Test using default bridge: " << defaultPythonBridgeScript << "\n";
+                 std::cout << "Starting Simple Vertical Test using default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
                  if (enableFlightControl && vehicle && vehicle->control && vehicle->subscribe) {
-                     std::cout << "Attempting to obtain Control Authority for Simple Vertical Test...\n";
+                     std::cout << "Attempting to obtain Control Authority for Simple Vertical Test..." << std::endl; // Logged
                      ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
                      if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Simple Vertical Test obtainCtrlAuthority");
-                         std::cerr << "Failed to obtain control authority. Cannot start Simple Vertical Test with control.\n";
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Simple Vertical Test obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority. Cannot start Simple Vertical Test with control." << std::endl; // Logged
                          break;
                      } else {
-                         std::cout << "Obtained Control Authority for Simple Vertical Test." << std::endl;
+                         std::cout << "Obtained Control Authority for Simple Vertical Test." << std::endl; // Logged
                      }
                  } else if (enableFlightControl) {
                      std::string reason = (!vehicle || !vehicle->control) ? "OSDK control" : "OSDK subscribe";
-                     std::cerr << "Error: Cannot start Simple Vertical Test with control as " << reason << " is not properly initialized.\n";
+                     std::cerr << "Error: Cannot start Simple Vertical Test with control as " << reason << " is not properly initialized." << std::endl; // Logged
                      break;
                  }
                  stopProcessingFlag.store(false);
@@ -1219,21 +1339,20 @@ int main(int argc, char** argv) {
                  break;
             }
              case 'c': { // Complex Vertical Test
-                // ... (remains unchanged) ...
-                 std::cout << "Starting Complex Vertical Test using default bridge: " << defaultPythonBridgeScript << "\n";
+                 std::cout << "Starting Complex Vertical Test using default bridge: " << defaultPythonBridgeScript << std::endl; // Logged
                  if (enableFlightControl && vehicle && vehicle->control && vehicle->subscribe) {
-                     std::cout << "Attempting to obtain Control Authority for Complex Vertical Test...\n";
+                     std::cout << "Attempting to obtain Control Authority for Complex Vertical Test..." << std::endl; // Logged
                      ACK::ErrorCode ctrlAuthAck = vehicle->control->obtainCtrlAuthority(functionTimeout);
                      if (ACK::getError(ctrlAuthAck)) {
-                         ACK::getErrorCodeMessage(ctrlAuthAck, "Complex Vertical Test obtainCtrlAuthority");
-                         std::cerr << "Failed to obtain control authority. Cannot start Complex Vertical Test with control.\n";
+                         ACK::getErrorCodeMessage(ctrlAuthAck, "Complex Vertical Test obtainCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Failed to obtain control authority. Cannot start Complex Vertical Test with control." << std::endl; // Logged
                          break;
                      } else {
-                         std::cout << "Obtained Control Authority for Complex Vertical Test." << std::endl;
+                         std::cout << "Obtained Control Authority for Complex Vertical Test." << std::endl; // Logged
                      }
                  } else if (enableFlightControl) {
                      std::string reason = (!vehicle || !vehicle->control) ? "OSDK control" : "OSDK subscribe";
-                     std::cerr << "Error: Cannot start Complex Vertical Test with control as " << reason << " is not properly initialized.\n";
+                     std::cerr << "Error: Cannot start Complex Vertical Test with control as " << reason << " is not properly initialized." << std::endl; // Logged
                      break;
                  }
                  stopProcessingFlag.store(false);
@@ -1242,80 +1361,88 @@ int main(int argc, char** argv) {
             }
              case 'e': // Process Full
              case 'f': { // Process Minimal
-                // ... (remains unchanged) ...
                  ProcessingMode procMode = (inputChar == 'e') ? ProcessingMode::PROCESS_FULL : ProcessingMode::PROCESS_MINIMAL;
-                 std::cout << "Starting Radar Data processing (No Control) using bridge: " << defaultPythonBridgeScript << "\n";
+                 std::cout << "Starting Radar Data processing (No Control) using bridge: " << defaultPythonBridgeScript << std::endl; // Logged
                  stopProcessingFlag.store(false);
                  processingThread = std::thread(processingLoopFunction, defaultPythonBridgeScript, nullptr, false, procMode);
                  break;
              }
 
             case 'q': { // Quit
-                // ... (remains unchanged) ...
-                std::cout << "Exiting..." << std::endl;
+                std::cout << "Exiting..." << std::endl; // Logged
                 // Stop threads handled above
 
                 if (monitoringEnabled && vehicle && vehicle->subscribe) {
-                    std::cout << "Unsubscribing from telemetry..." << std::endl;
+                    std::cout << "Unsubscribing from telemetry..." << std::endl; // Logged
                     ACK::ErrorCode statusAck = vehicle->subscribe->removePackage(pkgIndex, functionTimeout);
                     if(ACK::getError(statusAck)) {
-                        ACK::getErrorCodeMessage(statusAck, __func__);
-                        std::cerr << "Warning: Failed to unsubscribe from telemetry package " << pkgIndex << "." << std::endl;
+                        ACK::getErrorCodeMessage(statusAck, __func__); // Logged via ACK
+                        std::cerr << "Warning: Failed to unsubscribe from telemetry package " << pkgIndex << "." << std::endl; // Logged
                     } else {
-                        std::cout << "Telemetry unsubscribed." << std::endl;
+                        std::cout << "Telemetry unsubscribed." << std::endl; // Logged
                     }
                 }
 
                 if (enableFlightControl && vehicle && vehicle->control) {
-                    std::cout << "Sending Zero Velocity command before final release..." << std::endl;
-                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE;
+                    std::cout << "Sending Zero Velocity command before final release..." << std::endl; // Logged
+                    uint8_t controlFlag = DJI::OSDK::Control::HORIZONTAL_VELOCITY | DJI::OSDK::Control::VERTICAL_VELOCITY | DJI::OSDK::Control::YAW_RATE | DJI::OSDK::Control::HORIZONTAL_BODY | DJI::OSDK::Control::STABLE_ENABLE; // Truncated
                     DJI::OSDK::Control::CtrlData stopData(controlFlag, 0, 0, 0, 0);
                     vehicle->control->flightCtrl(stopData);
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-                    std::cout << "Releasing Control Authority on Quit...\n";
+                    std::cout << "Releasing Control Authority on Quit..." << std::endl; // Logged
                     ACK::ErrorCode releaseAck = vehicle->control->releaseCtrlAuthority(functionTimeout);
                      if (ACK::getError(releaseAck)) {
-                         ACK::getErrorCodeMessage(releaseAck, "Quit releaseCtrlAuthority");
-                         std::cerr << "Warning: Failed to release control authority on quit." << std::endl;
+                         ACK::getErrorCodeMessage(releaseAck, "Quit releaseCtrlAuthority"); // Logged via ACK
+                         std::cerr << "Warning: Failed to release control authority on quit." << std::endl; // Logged
                      } else {
-                         std::cout << "Control Authority Released on Quit." << std::endl;
+                         std::cout << "Control Authority Released on Quit." << std::endl; // Logged
                      }
                 }
                  if (linuxEnvironment) {
                     delete linuxEnvironment; linuxEnvironment = nullptr;
                  }
-                 if (flightSample) flightSample = nullptr;
-                 vehicle = nullptr;
+                 // Avoid deleting flightSample if it wasn't created or if linuxEnvironment owns it (depends on LinuxSetup implementation)
+                 // Assuming flightSample is created independently and needs deletion if it exists
+                 if (flightSample) {
+                    delete flightSample; flightSample = nullptr;
+                 }
+                 vehicle = nullptr; // vehicle pointer belongs to linuxEnvironment, no double delete needed
 
                 keepRunning = false;
                 break;
             }
             case 0: break; // Enter key pressed
-            default: std::cout << "Invalid input." << std::endl; break;
+            default: std::cout << "Invalid input." << std::endl; break; // Logged
         }
     } // End main loop
 
     // Final check to join threads if loop exited unexpectedly
-    // ... (remains unchanged) ...
      if (processingThread.joinable()) {
-         std::cerr << "Warning: Main loop exited unexpectedly, ensuring processing thread is stopped." << std::endl;
+         std::cerr << "Warning: Main loop exited unexpectedly, ensuring processing thread is stopped." << std::endl; // Logged
          stopProcessingFlag.store(true);
-         try { processingThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining processing thread: " << e.what() << std::endl; }
+         try { processingThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining processing thread: " << e.what() << std::endl; } // Logged
      }
      if (monitoringThread.joinable()) {
-         std::cerr << "Warning: Main loop exited unexpectedly, ensuring monitoring thread is stopped." << std::endl;
+         std::cerr << "Warning: Main loop exited unexpectedly, ensuring monitoring thread is stopped." << std::endl; // Logged
          stopMonitoringFlag.store(true);
-          try { monitoringThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining monitoring thread: " << e.what() << std::endl; }
+          try { monitoringThread.join(); } catch (const std::system_error& e) { std::cerr << "Error joining monitoring thread: " << e.what() << std::endl; } // Logged
      }
 
+      // Ensure linuxEnvironment is deleted if it exists, which should handle the vehicle pointer
       if (linuxEnvironment) {
          delete linuxEnvironment;
          linuxEnvironment = nullptr;
-         vehicle = nullptr;
-         flightSample = nullptr;
+         vehicle = nullptr; // Pointer is now invalid
+      }
+      // Ensure flightSample is deleted if it exists and wasn't handled by linuxEnvironment deletion
+      if (flightSample) {
+          delete flightSample;
+          flightSample = nullptr;
       }
 
-    std::cout << "Program terminated." << std::endl;
+
+    std::cout << "Program terminated." << std::endl; // Logged (will also go to file via LogRedirector dtor)
     return 0;
+    // LogRedirector destructor runs here, restoring original streams and closing file.
 }
