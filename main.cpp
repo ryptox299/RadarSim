@@ -219,11 +219,19 @@ std::thread monitoringThread;
 const int TELEMETRY_TIMEOUT_SECONDS = 5;
 const int RECONNECT_DELAY_SECONDS = 5;
 
-// --- NEW Connection Threading Variables ---
+// --- Connection/Disconnection Threading Variables ---
 std::thread connectionThread;               // Thread object for the connection task
 std::atomic<bool> isConnectingToDrone(false);   // Flag: True while connection thread is running
 std::atomic<bool> connectionAttemptFinished(false); // Flag: True when connection thread completes
-std::atomic<bool> connectionResult(false);       // Stores the success/failure result from the thread
+std::atomic<bool> connectionResult(false);       // Stores the success/failure result from the connection thread
+
+std::thread disconnectionThread;            // Thread object for the disconnection task
+std::atomic<bool> isDisconnecting(false);       // Flag: True while disconnection thread is running
+std::atomic<bool> disconnectionAttemptFinished(false); // Flag: True when disconnection thread completes
+
+std::atomic<bool> connectionRequested(false);   // Flag: GUI requests connection start
+std::atomic<bool> disconnectionRequested(false); // Flag: GUI requests disconnection start
+
 
 // --- Radar Bridge Connection Status ---
 enum class BridgeConnectionStatus { DISCONNECTED, CONNECTED, RECONNECTING };
@@ -276,7 +284,8 @@ bool connectToPythonBridge(boost::asio::io_context& io_context, tcp::socket& soc
 void runPythonBridge(const std::string& scriptName);
 void stopPythonBridge(const std::string& scriptName);
 std::string getModeName(uint8_t mode);
-void connectionTask(int argc, char** argv); // NEW: Function for the connection thread
+void connectionTask(int argc, char** argv); // Function for the connection thread
+void disconnectionTask(); // Function for the disconnection thread
 
 
 // --- Function Implementations ---
@@ -960,7 +969,7 @@ void stopProcessingThreadIfNeeded() {
 
 // --- Implementation of initializeOSDK ---
 // Initializes the DJI OSDK environment, vehicle, and telemetry subscription
-// NOTE: This function is now called from the connectionTask thread OR directly on startup
+// NOTE: This function is now called from the connectionTask thread
 bool initializeOSDK(int argc, char** argv) {
     std::lock_guard<std::mutex> lock(osdkMutex); // Lock for thread safety
 
@@ -1080,6 +1089,7 @@ bool initializeOSDK(int argc, char** argv) {
 
 // --- Implementation of deinitializeOSDK ---
 // Cleans up OSDK resources and stops related threads
+// NOTE: This function is now called from the disconnectionTask thread or at final cleanup
 void deinitializeOSDK() {
     std::lock_guard<std::mutex> lock(osdkMutex); // Lock the whole function for thread safety
 
@@ -1143,7 +1153,7 @@ void deinitializeOSDK() {
     std::cout << "[OSDK Deinit] Deinitialization finished." << std::endl;
 }
 
-// --- NEW Connection Task Function ---
+// --- Connection Task Function ---
 // This function runs in a separate thread to handle the blocking initializeOSDK call
 void connectionTask(int argc, char** argv) {
     std::cout << "[Conn Thread] Started." << std::endl;
@@ -1151,6 +1161,15 @@ void connectionTask(int argc, char** argv) {
     connectionResult.store(success);          // Store the result
     connectionAttemptFinished.store(true);    // Signal that the attempt is complete
     std::cout << "[Conn Thread] Finished. Result: " << std::boolalpha << success << std::endl;
+}
+
+// --- Disconnection Task Function ---
+// This function runs in a separate thread to handle the potentially blocking deinitializeOSDK call
+void disconnectionTask() {
+    std::cout << "[Disconn Thread] Started." << std::endl;
+    deinitializeOSDK(); // Perform the potentially blocking de-initialization
+    disconnectionAttemptFinished.store(true); // Signal that the attempt is complete
+    std::cout << "[Disconn Thread] Finished." << std::endl;
 }
 
 
@@ -1171,28 +1190,27 @@ int main(int argc, char** argv) {
     loadPreferences(); // Loads initial 'connect_to_drone' state
     std::cout << "[Main] Returned from loadPreferences()." << std::endl;
 
-    // Initial OSDK connection attempt based on preferences (on main thread before GUI starts)
+    // --- Start initial connection in background (using request mechanism) ---
     if (connect_to_drone) { // Check desired state from preferences
-        std::cout << "[Main] Initial attempt to connect to drone (connect_to_drone=true)..." << std::endl;
-        isConnectingToDrone.store(true); // Set flag *before* blocking call
-        if (!initializeOSDK(argc, argv)) { // Pass actual argc/argv; BLOCKING CALL
-            std::cerr << "[Main] Initial OSDK initialization failed. Starting disconnected." << std::endl;
-            connect_to_drone = false; // Update desired state to reflect failure
-        } else {
-            std::cout << "[Main] Initial OSDK initialization successful." << std::endl;
-            // connect_to_drone remains true, enableFlightControl was set in initializeOSDK
-        }
-        isConnectingToDrone.store(false); // Clear flag *after* blocking call finishes
+        std::cout << "[Main] Initial connection requested (connect_to_drone=true)." << std::endl;
+        connectionRequested.store(true); // Set request flag
     } else {
         std::cout << "[Main] Skipping initial OSDK Initialization (connect_to_drone is false)." << std::endl;
         enableFlightControl = false; // Ensure actual status is false
         monitoringEnabled = false;
+        connect_to_drone = false; // Ensure desired state is false
     }
+    // --- END Initial Connection Logic ---
+
 
     // --- GUI Initialization ---
     std::cout << "[GUI] Initializing SDL..." << std::endl;
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
         std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        // Attempt cleanup even if GUI init fails
+        // Join threads directly here since main loop isn't running yet
+        if (connectionThread.joinable()) { connectionThread.join(); }
+        if (disconnectionThread.joinable()) { disconnectionThread.join(); }
         deinitializeOSDK(); // Cleanup OSDK if partially initialized
         return 1;
     }
@@ -1210,16 +1228,16 @@ int main(int argc, char** argv) {
     // Create SDL Window
     SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     SDL_Window* window = SDL_CreateWindow("DJI OSDK Control GUI", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
-    if (!window) { std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl; SDL_Quit(); deinitializeOSDK(); return 1; }
+    if (!window) { std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl; SDL_Quit(); if (connectionThread.joinable()) { connectionThread.join(); } if (disconnectionThread.joinable()) { disconnectionThread.join(); } deinitializeOSDK(); return 1; }
     // Create GL Context
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
-    if (!gl_context) { std::cerr << "SDL_GL_CreateContext Error: " << SDL_GetError() << std::endl; SDL_DestroyWindow(window); SDL_Quit(); deinitializeOSDK(); return 1; }
+    if (!gl_context) { std::cerr << "SDL_GL_CreateContext Error: " << SDL_GetError() << std::endl; SDL_DestroyWindow(window); SDL_Quit(); if (connectionThread.joinable()) { connectionThread.join(); } if (disconnectionThread.joinable()) { disconnectionThread.join(); } deinitializeOSDK(); return 1; }
     SDL_GL_MakeCurrent(window, gl_context); SDL_GL_SetSwapInterval(1); // Enable vsync
 
     // Initialize GLEW
     std::cout << "[GUI] Initializing OpenGL Loader (GLEW)..." << std::endl;
     glewExperimental = GL_TRUE; GLenum err = glewInit();
-    if (err != GLEW_OK) { std::cerr << "Failed to initialize GLEW: " << glewGetErrorString(err) << std::endl; SDL_GL_DeleteContext(gl_context); SDL_DestroyWindow(window); SDL_Quit(); deinitializeOSDK(); return 1; }
+    if (err != GLEW_OK) { std::cerr << "Failed to initialize GLEW: " << glewGetErrorString(err) << std::endl; SDL_GL_DeleteContext(gl_context); SDL_DestroyWindow(window); SDL_Quit(); if (connectionThread.joinable()) { connectionThread.join(); } if (disconnectionThread.joinable()) { disconnectionThread.join(); } deinitializeOSDK(); return 1; }
     std::cout << "[GUI] Using GLEW " << glewGetString(GLEW_VERSION) << std::endl;
     std::cout << "[GUI] OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
@@ -1235,11 +1253,54 @@ int main(int argc, char** argv) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     bool guiKeepRunning = true;
     char target_beacon_id_buffer[128]; strncpy(target_beacon_id_buffer, TARGET_BEACON_ID.c_str(), sizeof(target_beacon_id_buffer) - 1); target_beacon_id_buffer[sizeof(target_beacon_id_buffer) - 1] = '\0';
-    // Note: connection_attempt_triggered is removed, logic handled by thread flags
 
     std::cout << "[GUI] Entering main GUI loop..." << std::endl;
     // --- Main GUI Loop ---
     while (guiKeepRunning) {
+
+        // --- Handle Connection/Disconnection Requests ---
+        bool connecting_now = isConnectingToDrone.load();
+        bool disconnecting_now = isDisconnecting.load();
+
+        if (connectionRequested.load() && !connecting_now && !disconnecting_now) {
+            bool can_connect = false;
+            { // Check status safely
+                std::lock_guard<std::mutex> lock(osdkMutex);
+                can_connect = !enableFlightControl;
+            }
+            if (can_connect) {
+                std::cout << "[GUI Loop] Connection request received. Starting connection thread..." << std::endl;
+                isConnectingToDrone.store(true);
+                connectionAttemptFinished.store(false);
+                connectionResult.store(false);
+                // Launch thread
+                connectionThread = std::thread(connectionTask, argc, argv);
+            } else {
+                 std::cout << "[GUI Loop] Connection requested but already connected or cannot connect now." << std::endl;
+            }
+            connectionRequested.store(false); // Reset request regardless of launch
+        }
+
+        if (disconnectionRequested.load() && !connecting_now && !disconnecting_now) {
+             bool can_disconnect = false;
+             { // Check status safely
+                 std::lock_guard<std::mutex> lock(osdkMutex);
+                 can_disconnect = enableFlightControl;
+             }
+             if(can_disconnect) {
+                std::cout << "[GUI Loop] Disconnection request received. Starting disconnection thread..." << std::endl;
+                isDisconnecting.store(true);
+                disconnectionAttemptFinished.store(false);
+                 // Launch thread
+                disconnectionThread = std::thread(disconnectionTask);
+             } else {
+                 std::cout << "[GUI Loop] Disconnection requested but already disconnected or cannot disconnect now." << std::endl;
+             }
+            disconnectionRequested.store(false); // Reset request regardless of launch
+        }
+        // --- END Handle Connection/Disconnection Requests ---
+
+
         // --- Handle Connection Thread Completion ---
         if (connectionAttemptFinished.load()) {
             std::cout << "[GUI Loop] Connection attempt finished signal received." << std::endl;
@@ -1247,14 +1308,49 @@ int main(int argc, char** argv) {
                 connectionThread.join(); // Join the completed thread
                 std::cout << "[GUI Loop] Connection thread joined." << std::endl;
             }
-            // Update desired state based on thread result
-            connect_to_drone = connectionResult.load();
-            std::cout << "[GUI Loop] Updated connect_to_drone to: " << std::boolalpha << connect_to_drone << std::endl;
-
+            bool result = connectionResult.load();
+            // Only update desired state if a disconnect wasn't requested in the meantime
+            if (connect_to_drone) {
+                 if (!result) {
+                     std::cerr << "[GUI Loop] Connection attempt failed. Updating desired state to false." << std::endl;
+                     connect_to_drone = false; // Update desired state to reflect failure
+                 } else {
+                     std::cout << "[GUI Loop] Connection successful. Desired state remains true." << std::endl;
+                     // connect_to_drone should already be true
+                 }
+            } else {
+                 std::cout << "[GUI Loop] Connection attempt finished, but user requested disconnect during the process." << std::endl;
+                 // If connection succeeded but user wants disconnect, trigger disconnection request
+                 bool actualStatus;
+                 { std::lock_guard<std::mutex> lock(osdkMutex); actualStatus = enableFlightControl; }
+                 if (actualStatus && !isDisconnecting.load()) {
+                     std::cout << "[GUI Loop] Requesting disconnection after successful connection (user changed mind)." << std::endl;
+                     disconnectionRequested.store(true);
+                 }
+            }
             // Reset flags *after* joining and processing result
             isConnectingToDrone.store(false);
             connectionAttemptFinished.store(false);
         }
+
+        // --- Handle Disconnection Thread Completion ---
+        if (disconnectionAttemptFinished.load()) {
+            std::cout << "[GUI Loop] Disconnection attempt finished signal received." << std::endl;
+            if (disconnectionThread.joinable()) {
+                disconnectionThread.join(); // Join the completed thread
+                std::cout << "[GUI Loop] Disconnection thread joined." << std::endl;
+            }
+            // Ensure desired state reflects disconnection
+            connect_to_drone = false;
+            std::cout << "[GUI Loop] Disconnection complete. Desired state set to false." << std::endl;
+            // Reset flags *after* joining
+            isDisconnecting.store(false);
+            disconnectionAttemptFinished.store(false);
+
+            // If a connection was requested during disconnection, it will be handled in the next loop iteration
+        }
+        // --- END Handle Disconnection Thread Completion ---
+
 
         // Poll SDL events
         SDL_Event event;
@@ -1277,12 +1373,14 @@ int main(int argc, char** argv) {
         ImVec2 work_size = viewport->WorkSize;
         float verticalPadding = 10.0f;
 
-        // Read current flight control status safely
+        // Read current states for drawing
         bool currentFlightControlStatus;
         {
             std::lock_guard<std::mutex> lock(osdkMutex);
             currentFlightControlStatus = enableFlightControl; // Read the actual connected status
         }
+        bool connecting_in_progress = isConnectingToDrone.load(); // Read status for drawing
+        bool disconnecting_in_progress = isDisconnecting.load(); // Read status for drawing
 
         // --- Drone Status Indicator ---
         {
@@ -1291,7 +1389,7 @@ int main(int argc, char** argv) {
             ImVec2 droneTextSize = ImGui::CalcTextSize(droneStatusText); droneTextSize.x *= statusScale; droneTextSize.y *= statusScale;
             ImVec2 droneWindowPos = ImVec2(work_pos.x + (work_size.x - droneTextSize.x) * 0.5f, work_pos.y + verticalPadding);
             ImGui::SetNextWindowPos(droneWindowPos, ImGuiCond_Always); ImGui::SetNextWindowBgAlpha(0.0f);
-            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
             ImGui::Begin("DroneStatusIndicator", nullptr, flags);
             ImGui::SetWindowFontScale(statusScale); ImGui::TextColored(droneStatusColor, "%s", droneStatusText); ImGui::SetWindowFontScale(1.0f);
             ImGui::End();
@@ -1304,7 +1402,7 @@ int main(int argc, char** argv) {
             float estHeight = ImGui::CalcTextSize("X").y * statusScale + 5.0f; // Estimate height
             ImVec2 radarWindowPos = ImVec2(work_pos.x + (work_size.x - radarTextSize.x) * 0.5f, work_pos.y + verticalPadding + estHeight);
             ImGui::SetNextWindowPos(radarWindowPos, ImGuiCond_Always); ImGui::SetNextWindowBgAlpha(0.0f);
-            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
             ImGui::Begin("RadarStatusIndicator", nullptr, flags);
             ImGui::SetWindowFontScale(statusScale); ImGui::TextColored(radarStatusColor, "%s", radarStatusText); ImGui::SetWindowFontScale(1.0f);
             ImGui::End();
@@ -1395,119 +1493,4 @@ int main(int argc, char** argv) {
             ImGui::Text("Editable Parameters"); ImGui::Separator();
             if (ImGui::InputText("Target Beacon ID", target_beacon_id_buffer, sizeof(target_beacon_id_buffer))) { TARGET_BEACON_ID = target_beacon_id_buffer; std::cout << "[GUI Param Update] Target Beacon ID: " << TARGET_BEACON_ID << std::endl; }
             if (ImGui::InputFloat("Target Distance (m)", &targetDistance, 0.1f, 1.0f, "%.3f")) { std::cout << "[GUI Param Update] Target Distance: " << targetDistance << std::endl; }
-            if (ImGui::InputFloat("Target Azimuth (deg)", &targetAzimuth, 1.0f, 10.0f, "%.3f")) { std::cout << "[GUI Param Update] Target Azimuth: " << targetAzimuth << std::endl; }
-            ImGui::Separator(); ImGui::Text("Forward Control:");
-            if (ImGui::InputFloat("Kp Forward", &Kp_forward, 0.01f, 0.1f, "%.4f")) { std::cout << "[GUI Param Update] Kp Forward: " << Kp_forward << std::endl; }
-            if (ImGui::InputFloat("Max Fwd Speed (m/s)", &max_forward_speed, 0.05f, 0.2f, "%.3f")) { std::cout << "[GUI Param Update] Max Fwd Speed: " << max_forward_speed << std::endl; }
-            if (ImGui::InputFloat("Fwd Dead Zone (m)", &forward_dead_zone, 0.01f, 0.1f, "%.3f")) { std::cout << "[GUI Param Update] Fwd Dead Zone: " << forward_dead_zone << std::endl; }
-            ImGui::Separator(); ImGui::Text("Lateral Control:");
-            if (ImGui::InputFloat("Kp Lateral", &Kp_lateral, 0.001f, 0.01f, "%.5f")) { std::cout << "[GUI Param Update] Kp Lateral: " << Kp_lateral << std::endl; }
-            if (ImGui::InputFloat("Max Lat Speed (m/s)", &max_lateral_speed, 0.05f, 0.2f, "%.3f")) { std::cout << "[GUI Param Update] Max Lat Speed: " << max_lateral_speed << std::endl; }
-            if (ImGui::InputFloat("Azimuth Dead Zone (deg)", &azimuth_dead_zone, 0.1f, 1.0f, "%.3f")) { std::cout << "[GUI Param Update] Azimuth Dead Zone: " << azimuth_dead_zone << std::endl; }
-            ImGui::Separator(); ImGui::Text("Connection:");
-            if (ImGui::Checkbox("Bridge Reconnect", &enable_bridge_reconnection)) { std::cout << "[GUI Param Update] Bridge Reconnect: " << std::boolalpha << enable_bridge_reconnection << std::endl; }
-
-            // --- Connect to Drone Checkbox (Uses background thread) ---
-            bool connecting_in_progress = isConnectingToDrone.load();
-            // Disable checkbox while connection thread is running
-            if (connecting_in_progress) { ImGui::BeginDisabled(); }
-
-            // Checkbox reflects the *desired* state (connect_to_drone)
-            bool checkbox_value = connect_to_drone;
-            if (ImGui::Checkbox("##ConnectDroneCheckbox", &checkbox_value)) {
-                // This block executes ONLY when the checkbox is clicked
-                if (checkbox_value) { // User clicked to check (wants connection)
-                    // Start connection thread ONLY if not already connecting AND not already connected
-                    if (!connecting_in_progress && !currentFlightControlStatus) {
-                        std::cout << "[GUI] Connect checkbox checked. Starting connection thread..." << std::endl;
-                        isConnectingToDrone.store(true);       // Set flag: connection starting
-                        connectionAttemptFinished.store(false); // Reset finished flag
-                        connectionResult.store(false);          // Reset result flag
-
-                        // Join previous thread if it exists and is joinable (shouldn't happen often here, but safe)
-                        if (connectionThread.joinable()) {
-                             connectionThread.join();
-                        }
-                        // Start the new connection thread
-                        connectionThread = std::thread(connectionTask, argc, argv); // Pass argc, argv
-                        connect_to_drone = true; // Update desired state immediately
-
-                    } else if (connecting_in_progress) {
-                         std::cout << "[GUI] Connection attempt already in progress." << std::endl;
-                         // Don't change connect_to_drone, let the current attempt finish
-                    } else { // Already connected
-                         std::cout << "[GUI] Already connected." << std::endl;
-                         connect_to_drone = true; // Ensure desired state is true
-                    }
-                } else { // User clicked to uncheck (wants disconnection)
-                    // Only disconnect if NOT connecting AND currently connected
-                    if (!connecting_in_progress && currentFlightControlStatus) {
-                        std::cout << "[GUI] Connect checkbox unchecked. Disconnecting..." << std::endl;
-                        deinitializeOSDK();       // Disconnect synchronously
-                        connect_to_drone = false; // Update desired state
-                        std::cout << "[GUI] Disconnected from drone." << std::endl;
-                    } else if (connecting_in_progress) {
-                        // If user unchecks while connecting, just update desired state.
-                        // We cannot easily cancel initializeOSDK. The thread will finish.
-                        std::cout << "[GUI] Connect checkbox unchecked while connection attempt in progress. Desired state set to disconnected." << std::endl;
-                        connect_to_drone = false; // Update desired state
-                    } else { // Already disconnected
-                         std::cout << "[GUI] Already disconnected." << std::endl;
-                         connect_to_drone = false; // Ensure desired state is false
-                    }
-                }
-            }
-            // End disabled state
-            if (connecting_in_progress) { ImGui::EndDisabled(); }
-
-            // Visible label and status text based on connection thread state
-            ImGui::SameLine();
-            if (connecting_in_progress) {
-                ImGui::Text("Connecting to Drone...");
-            } else {
-                ImGui::Text("Connect to Drone");
-            }
-            // --- End Connect to Drone Checkbox ---
-
-          ImGui::End();
-        }
-
-        // Rendering
-        ImGui::Render();
-        int dw, dh; SDL_GetWindowSize(window, &dw, &dh);
-        glViewport(0, 0, dw, dh);
-        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        SDL_GL_SwapWindow(window);
-
-    } // End GUI loop
-
-    // --- Cleanup ---
-    std::cout << "[GUI] Exited main GUI loop. Cleaning up..." << std::endl;
-
-    // Ensure connection thread is joined if it was running
-    if (connectionThread.joinable()) {
-        std::cout << "[Cleanup] Joining connection thread..." << std::endl; // Corrected line
-        connectionThread.join();
-        std::cout << "[Cleanup] Connection thread joined." << std::endl;
-    }
-
-    // Stop processing thread and monitoring thread, deinitialize OSDK
-    deinitializeOSDK(); // This now handles stopping processing/monitoring threads internally
-
-    // Cleanup GUI
-    std::cout << "[GUI] Cleaning up ImGui..." << std::endl;
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
-
-    // Cleanup SDL
-    std::cout << "[GUI] Cleaning up SDL..." << std::endl;
-    SDL_GL_DeleteContext(gl_context);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-
-    std::cout << "Application finished with exit code: 0" << std::endl;
-    return 0;
-}
+            if (ImGui::InputFloat("Target Azimuth (deg)", &targetAzimuth, 1.0f, 10.0f, "%.3f")) { std::cout << "[GUI Param Update
