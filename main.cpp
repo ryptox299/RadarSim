@@ -127,7 +127,7 @@ public:
         std::cout.rdbuf(cout_tee_buf_.get()); // Redirect cout
         std::cerr.rdbuf(cerr_tee_buf_.get()); // Redirect cerr
 
-        std::cout << "\n--- Log Start [" << getCurrentTimestamp() << "] ---" << std::endl; // Added newline for separation
+        std::cout << "\n--- Log Start [" << getCurrentTimestamp() << "] ---\n" << std::endl; // Added newline for separation
     }
 
     ~LogRedirector() {
@@ -353,7 +353,14 @@ void displayRadarObjects(const std::vector<RadarObject>& objects) {
     if (objects.empty()) return;
     std::cout << "--- Begin Radar Objects for Second: " << currentSecond << " ---" << std::endl;
     for (const auto& obj : objects) {
-        std::cout << "Radar Object:\n" << "  Timestamp: " << obj.timestamp << "\n" << "  Sensor: " << obj.sensor << "\n" << "  Source: " << obj.src << "\n" << "  ID: " << obj.ID << "\n" << "  X: " << obj.X << " Y: " << obj.Y << " Z: " << obj.Z << "\n" << "  Xdir: " << obj.Xdir << " Ydir: " << obj.Ydir << " Zdir: " << obj.Zdir << "\n" << "  Range: " << obj.Range << " Range Rate: " << obj.RangeRate << "\n" << "  Power: " << obj.Pwr << " Azimuth: " << obj.Az << " Elevation: " << obj.El << "\n" << "  Xsize: " << obj.Xsize << " Ysize: " << obj.Ysize << " Zsize: " << obj.Zsize << "\n" << "  Confidence: " << obj.Conf << "\n" << "----------------------------------------" << std::endl;
+        std::cout << "Radar Object:\n"
+                  << "  Timestamp: " << obj.timestamp << "\n"
+                  << "  Sensor: " << obj.sensor << "\n"
+                  << "  Source: " << obj.src << "\n"
+                  << "  ID: " << obj.ID << "\n"
+                  << "  X: " << obj.X << ", Y: " << obj.Y << ", Z: " << obj.Z << "\n"
+                  << "  Range: " << obj.Range << ", Az: " << obj.Az << ", El: " << obj.El << "\n"
+                  << "  RangeRate: " << obj.RangeRate << ", Pwr: " << obj.Pwr << ", Conf: " << obj.Conf << std::endl;
     }
      std::cout << "--- End Radar Objects for Second: " << currentSecond << " ---" << std::endl;
 }
@@ -401,13 +408,18 @@ void extractBeaconAndWallData(const std::vector<RadarObject>& objects, Vehicle* 
                     uint8_t controlFlag = Control::HORIZONTAL_VELOCITY | Control::VERTICAL_VELOCITY | Control::YAW_RATE | Control::HORIZONTAL_BODY | Control::STABLE_ENABLE;
                     Control::CtrlData ctrlData(controlFlag, velocity_x, velocity_y, 0, 0); // Yaw rate and vertical velocity are zero
                     // Log control status
-                    std::cout << "[Wall Follow] Control Status (Second: " << currentSecond << "):\n" << "  TargetWall  = " << std::fixed << std::setprecision(1) << std::setw(3) << targetDistance << "\n" << "  CurrentWall = " << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" << "  TargetBeaconAz=" << targetAzimuth << "\n" << "  CurrentBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << "\n\n" << "  Computed Velocity(X=" << velocity_x << ", Y=" << velocity_y << ")" << std::endl;
+                    std::cout << "[Wall Follow] Control Status (Second: " << currentSecond << "):\n"
+                              << "  TargetWall  = " << std::fixed << std::setprecision(1) << std::setw(3) << targetDistance << " m, CurrentWall = " << (hasAnonData ? std::to_string(lowestRange) : "N/A") << " m\n"
+                              << "  TargetBeacon= " << std::fixed << std::setprecision(1) << std::setw(3) << targetAzimuth << " deg, CurrentBeacon = " << (foundTargetBeacon ? std::to_string(targetBeaconAzimuth) : "N/A") << " deg\n"
+                              << "  VelocityCmd = (" << std::fixed << std::setprecision(2) << std::setw(5) << velocity_x << " m/s, " << std::fixed << std::setprecision(2) << std::setw(5) << velocity_y << " m/s)" << std::endl;
                     std::cout << "--------------------------------------" << std::endl;
                     // Send control command
                     vehiclePtr->control->flightCtrl(ctrlData);
                 } else if (hasAnonData || foundTargetBeacon) { // Log status even if control disabled
                      if (!foundTargetBeacon) { std::cout << "***BEACON NOT FOUND***" << std::endl;} // Log beacon loss
-                     std::cout << "[Wall Follow] (Flight Control Disabled or Not Available) (Second: " << currentSecond << "):\n" << "  TargetWall  = " << std::fixed << std::setprecision(1) << std::setw(3) << targetDistance << "\n" << "  CurrentWall = " << (hasAnonData ? std::to_string(lowestRange) : "N/A") << "\n" << "  TargetBeaconAz=" << targetAzimuth << "\n" << "  CurrentBeaconAz=" << (foundTargetBeacon && !std::isnan(targetBeaconAzimuth) ? std::to_string(targetBeaconAzimuth) : "N/A") << std::endl;
+                     std::cout << "[Wall Follow] (Flight Control Disabled or Not Available) (Second: " << currentSecond << "):\n"
+                               << "  TargetWall  = " << std::fixed << std::setprecision(1) << std::setw(3) << targetDistance << " m, CurrentWall = " << (hasAnonData ? std::to_string(lowestRange) : "N/A") << " m\n"
+                               << "  TargetBeacon= " << std::fixed << std::setprecision(1) << std::setw(3) << targetAzimuth << " deg, CurrentBeacon = " << (foundTargetBeacon ? std::to_string(targetBeaconAzimuth) : "N/A") << " deg" << std::endl;
                      std::cout << "--------------------------------------" << std::endl;
                 }
             }
@@ -840,7 +852,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
         // Sanity check pointers inside loop (less critical now, but safe)
         if (vehiclePtr == nullptr || vehiclePtr->subscribe == nullptr) {
              if (!telemetry_timed_out) { // Avoid spamming log
-                 std::cerr << "\n**** MONITORING ERROR: Vehicle/subscribe object became null. Stopping. ****" << std::endl << std::endl;
+                 std::cerr << "\n**** MONITORING ERROR: Vehicle/subscribe object became null. Stopping. ****\n" << std::endl;
                  telemetry_timed_out = true;
              }
              break; // Exit if vehicle objects become invalid
@@ -866,7 +878,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
                 if ( (previous_flight_status == VehicleStatus::FlightStatus::IN_AIR) &&
                      (current_flight_status == VehicleStatus::FlightStatus::ON_GROUND || current_flight_status == VehicleStatus::FlightStatus::STOPED) &&
                      !warned_unexpected_status) {
-                     std::cerr << "\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " << (int)current_flight_status << ". ****" << std::endl << std::endl;
+                     std::cerr << "\n**** MONITORING WARNING: Flight status changed unexpectedly from IN_AIR to " << (int)current_flight_status << ". ****\n" << std::endl;
                      warned_unexpected_status = true;
                 }
             } else {
@@ -878,7 +890,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
             bool is_expected_mode = (current_display_mode == EXPECTED_SDK_MODE);
             if (is_expected_mode) {
                 if (!in_sdk_control_mode) { // Log entry into SDK mode
-                    std::cout << "\n**** MONITORING INFO: Entered SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << " / " << (int)EXPECTED_SDK_MODE << ") ****" << std::endl << std::endl;
+                    std::cout << "\n**** MONITORING INFO: Entered SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << " / " << (int)EXPECTED_SDK_MODE << ") ****\n" << std::endl;
                     in_sdk_control_mode = true;
                     warned_not_in_sdk_mode = false; // Reset warning flag
                 }
@@ -886,14 +898,14 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
                  // Warn only if previously in SDK mode or not warned yet, AND processing thread is active
                  if ((in_sdk_control_mode || !warned_not_in_sdk_mode) && !stopProcessingFlag.load() && processingThread.joinable()) {
                       std::string current_mode_name = getModeName(current_display_mode);
-                      std::cerr << "\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << "). Current: " << current_mode_name << " (" << (int)current_display_mode << ") ****" << std::endl << std::endl;
+                      std::cerr << "\n**** MONITORING WARNING: NOT in expected SDK Control Mode (" << getModeName(EXPECTED_SDK_MODE) << "). Current: " << current_mode_name << " (" << (int)current_display_mode << ") ****\n" << std::endl;
                       warned_not_in_sdk_mode = true;
                  }
                  in_sdk_control_mode = false; // Update state
             }
         } else { // Invalid poll data received
             if (!telemetry_timed_out) { // Avoid spamming log
-                 std::cerr << "\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" << (int)current_flight_status << "). ****" << std::endl << std::endl;
+                 std::cerr << "\n**** MONITORING WARNING: Polling telemetry returned potentially invalid data (FlightStatus=" << (int)current_flight_status << "). ****\n" << std::endl;
                  telemetry_timed_out = true;
             }
         }
@@ -902,7 +914,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
         time_t current_time_for_timeout_check = std::time(nullptr);
         if (last_valid_poll_time > 0 && (current_time_for_timeout_check - last_valid_poll_time > TELEMETRY_TIMEOUT_SECONDS)) {
             if (!telemetry_timed_out) { // Avoid spamming log
-                std::cerr << "\n**** MONITORING TIMEOUT: No valid telemetry for over " << TELEMETRY_TIMEOUT_SECONDS << " seconds. ****" << std::endl << std::endl;
+                std::cerr << "\n**** MONITORING TIMEOUT: No valid telemetry for over " << TELEMETRY_TIMEOUT_SECONDS << " seconds. ****\n" << std::endl;
                 telemetry_timed_out = true;
             }
         } else if (last_valid_poll_time == 0) { // Check if never received first poll
@@ -910,7 +922,7 @@ void monitoringLoopFunction(Vehicle* vehiclePtr) {
              // Allow more time initially before declaring timeout
              if (current_time_for_timeout_check - start_time > TELEMETRY_TIMEOUT_SECONDS * 2) {
                   if (!telemetry_timed_out) { // Avoid spamming log
-                       std::cerr << "\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " << TELEMETRY_TIMEOUT_SECONDS * 2 << " seconds. ****" << std::endl << std::endl;
+                       std::cerr << "\n**** MONITORING TIMEOUT: Never received valid telemetry poll after " << TELEMETRY_TIMEOUT_SECONDS * 2 << " seconds. ****\n" << std::endl;
                        telemetry_timed_out = true;
                   }
              }
@@ -1279,7 +1291,7 @@ int main(int argc, char** argv) {
             ImVec2 droneTextSize = ImGui::CalcTextSize(droneStatusText); droneTextSize.x *= statusScale; droneTextSize.y *= statusScale;
             ImVec2 droneWindowPos = ImVec2(work_pos.x + (work_size.x - droneTextSize.x) * 0.5f, work_pos.y + verticalPadding);
             ImGui::SetNextWindowPos(droneWindowPos, ImGuiCond_Always); ImGui::SetNextWindowBgAlpha(0.0f);
-            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground;
+            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
             ImGui::Begin("DroneStatusIndicator", nullptr, flags);
             ImGui::SetWindowFontScale(statusScale); ImGui::TextColored(droneStatusColor, "%s", droneStatusText); ImGui::SetWindowFontScale(1.0f);
             ImGui::End();
@@ -1287,12 +1299,12 @@ int main(int argc, char** argv) {
         // --- Radar Bridge Status Indicator ---
         {
             BridgeConnectionStatus radarStatus = currentBridgeStatus.load(); const char* radarStatusText = ""; ImVec4 radarStatusColor = red;
-            switch(radarStatus) { case BridgeConnectionStatus::CONNECTED: radarStatusText = "Radar Bridge: Connected"; radarStatusColor = green; break; case BridgeConnectionStatus::DISCONNECTED: radarStatusText = "Radar Bridge: Disconnected"; radarStatusColor = red; break; case BridgeConnectionStatus::RECONNECTING: radarStatusText = "Radar Bridge: Attempting Reconnect..."; radarStatusColor = orange; break; }
+            switch(radarStatus) { case BridgeConnectionStatus::CONNECTED: radarStatusText = "Radar Bridge: Connected"; radarStatusColor = green; break; case BridgeConnectionStatus::DISCONNECTED: radarStatusText = "Radar Bridge: Disconnected"; radarStatusColor = red; break; case BridgeConnectionStatus::RECONNECTING: radarStatusText = "Radar Bridge: Reconnecting..."; radarStatusColor = orange; break; }
             ImVec2 radarTextSize = ImGui::CalcTextSize(radarStatusText); radarTextSize.x *= statusScale; radarTextSize.y *= statusScale;
             float estHeight = ImGui::CalcTextSize("X").y * statusScale + 5.0f; // Estimate height
             ImVec2 radarWindowPos = ImVec2(work_pos.x + (work_size.x - radarTextSize.x) * 0.5f, work_pos.y + verticalPadding + estHeight);
             ImGui::SetNextWindowPos(radarWindowPos, ImGuiCond_Always); ImGui::SetNextWindowBgAlpha(0.0f);
-            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground;
+            ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
             ImGui::Begin("RadarStatusIndicator", nullptr, flags);
             ImGui::SetWindowFontScale(statusScale); ImGui::TextColored(radarStatusColor, "%s", radarStatusText); ImGui::SetWindowFontScale(1.0f);
             ImGui::End();
@@ -1476,7 +1488,7 @@ int main(int argc, char** argv) {
 
     // Ensure connection thread is joined if it was running
     if (connectionThread.joinable()) {
-        std::cout << "[Cleanup] Joining connection thread..." << std::endl;
+        std::cout << "[Cleanup] Joining connection thread..." << std::endl; // Corrected line
         connectionThread.join();
         std::cout << "[Cleanup] Connection thread joined." << std::endl;
     }
